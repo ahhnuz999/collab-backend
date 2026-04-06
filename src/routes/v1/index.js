@@ -1,0 +1,30 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.v1Router = void 0;
+const express_1 = require("express");
+const user_routes_1 = __importDefault(require("../../routes/v1/user.routes"));
+const service_provider_routes_1 = __importDefault(require("../../routes/v1/service-provider.routes"));
+const organization_routes_1 = __importDefault(require("../../routes/v1/organization.routes"));
+const emergency_request_routes_1 = __importDefault(require("../../routes/v1/emergency-request.routes"));
+const maps_routes_1 = __importDefault(require("../../routes/v1/maps.routes"));
+const emergency_response_routes_1 = __importDefault(require("./emergency-response.routes"));
+const healthcheck_routes_1 = __importDefault(require("./healthcheck.routes"));
+const feedback_routes_1 = __importDefault(require("./feedback.routes"));
+const emergency_contacts_routes_1 = __importDefault(require("./emergency-contacts.routes"));
+const notification_routes_1 = __importDefault(require("./notification.routes"));
+const v1Router = (0, express_1.Router)();
+exports.v1Router = v1Router;
+// Health Check Router
+v1Router.use("/healthcheck", healthcheck_routes_1.default);
+v1Router.use("/user", user_routes_1.default);
+v1Router.use("/service-provider", service_provider_routes_1.default);
+v1Router.use("/organization", organization_routes_1.default);
+v1Router.use("/emergency-request", emergency_request_routes_1.default);
+v1Router.use("/maps", maps_routes_1.default);
+v1Router.use("/emergency-response", emergency_response_routes_1.default);
+v1Router.use("/feedback", feedback_routes_1.default);
+v1Router.use("/emergency-contacts", emergency_contacts_routes_1.default);
+v1Router.use("/notifications", notification_routes_1.default);

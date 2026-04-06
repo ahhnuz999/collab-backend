@@ -1,0 +1,37 @@
+{
+  "name": "resq-backend",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "lint": "echo \"No linter configured for JavaScript\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^9.7.0",
+    "authenticator": "^1.1.5",
+    "axios": "^1.8.4",
+    "bcryptjs": "^3.0.2",
+    "cookie": "^1.0.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "expo-server-sdk": "^3.15.0",
+    "express": "^4.21.2",
+    "haversine-distance": "^1.2.3",
+    "jsonwebtoken": "^9.0.2",
+    "mailgen": "^2.0.29",
+    "mongoose": "^8.23.0",
+    "nodemailer": "^7.0.2",
+    "socket.io": "^4.8.1",
+    "twilio": "^5.5.0",
+    "zod": "^3.24.2"
+  }
+}

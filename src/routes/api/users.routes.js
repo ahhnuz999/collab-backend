@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const users_api_controller_1 = require("../../controllers/users-api.controller");
+const auth_middleware_1 = require("../../middlewares/auth.middleware");
+const express_1 = require("express");
+const usersRouter = (0, express_1.Router)();
+usersRouter.get("/profile", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), users_api_controller_1.getProfile);
+usersRouter.put("/profile", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), users_api_controller_1.updateProfile);
+usersRouter.get("/", (0, auth_middleware_1.validateRoleAuth)(["admin"]), users_api_controller_1.getAllUsers);
+usersRouter.get("/:id/contacts", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), users_api_controller_1.getUserContacts);
+usersRouter.get("/:id/requests", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), users_api_controller_1.getUserRequests);
+usersRouter.get("/:id/responses", (0, auth_middleware_1.validateRoleAuth)(["admin"]), users_api_controller_1.getUserResponses);
+usersRouter.get("/:id", (0, auth_middleware_1.validateRoleAuth)(["admin"]), users_api_controller_1.getUserById);
+exports.default = usersRouter;

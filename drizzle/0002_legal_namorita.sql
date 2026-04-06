@@ -1,0 +1,1 @@
+ALTER TABLE "feedback" ALTER COLUMN "service_ratings" DROP IDENTITY;

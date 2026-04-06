@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: resq_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: resq_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - resq-network
+    restart: always
+
+networks:
+  resq-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

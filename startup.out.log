@@ -1,0 +1,8 @@
+Twilio disabled (invalid credentials)
+URI: mongodb://uness:uness123@ac-1w190qa-shard-00-00.n1n9zxh.mongodb.net:27017,ac-1w190qa-shard-00-01.n1n9zxh.mongodb.net:27017,ac-1w190qa-shard-00-02.n1n9zxh.mongodb.net:27017/?ssl=true&replicaSet=atlas-bfaft3-shard-0&authSource=admin&appName=Emerg
+DB NAME: emerg
+MongoDB connected: emerg
+Port 3000 is already in use. Retrying on 3001...
+Port 3001 is already in use. Retrying on 3002...
+Server is listening on: http://0.0.0.0:3002
+Preferred port 3000 was busy, so the server started on 3002 instead.

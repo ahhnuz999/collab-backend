@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const emergency_api_controller_1 = require("../../controllers/emergency-api.controller");
+const rate_limit_middleware_1 = require("../../middlewares/rate-limit.middleware");
+const auth_middleware_1 = require("../../middlewares/auth.middleware");
+const express_1 = require("express");
+const emergencyRouter = (0, express_1.Router)();
+emergencyRouter.post("/sos", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), (0, rate_limit_middleware_1.createRateLimiter)({ limit: 5, windowMs: 60_000 }), emergency_api_controller_1.createSosAlert);
+emergencyRouter.get("/history", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), emergency_api_controller_1.getIncidentHistory);
+emergencyRouter.get("/:id", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), emergency_api_controller_1.getEmergencyById);
+emergencyRouter.put("/:id/status", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), emergency_api_controller_1.updateEmergencyStatus);
+exports.default = emergencyRouter;

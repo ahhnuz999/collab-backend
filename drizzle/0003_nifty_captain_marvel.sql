@@ -1,0 +1,1 @@
+ALTER TABLE "emergency_contact" ADD COLUMN "relationship" varchar(50) NOT NULL;

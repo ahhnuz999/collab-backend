@@ -1,0 +1,1 @@
+ALTER TABLE "service_provider" ADD COLUMN "service_area" varchar DEFAULT 'Kathmandu Valley';

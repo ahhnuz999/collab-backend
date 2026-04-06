@@ -1,0 +1,1 @@
+ALTER TABLE "service_provider" ADD COLUMN "vehicle_information" json DEFAULT '{"type":"Not filled","number":"Not filled","model":"Not filled","color":"Not filled"}'::json;
