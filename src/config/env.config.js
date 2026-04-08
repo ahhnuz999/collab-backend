@@ -1,7 +1,20 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.envConfig = void 0;
+const fs_1 = require("fs");
+const path_1 = require("path");
+const dotenv_1 = require("dotenv");
 const zod_1 = require("zod");
+const projectRoot = (0, path_1.resolve)(__dirname, "../..");
+const envFilePaths = [
+    (0, path_1.join)(projectRoot, ".env.sample"),
+    (0, path_1.join)(projectRoot, ".env"),
+];
+for (const filePath of envFilePaths) {
+    if ((0, fs_1.existsSync)(filePath)) {
+        (0, dotenv_1.config)({ path: filePath, override: true });
+    }
+}
 const envSchema = zod_1.z.object({
     PORT: zod_1.z.coerce.number().default(3000),
     HOST: zod_1.z.string().default("0.0.0.0"),

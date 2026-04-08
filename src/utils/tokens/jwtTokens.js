@@ -7,11 +7,12 @@ exports.verifyJWT = exports.generateJWT = void 0;
 const env_config_1 = require("../../config/env.config");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const generateJWT = (user) => {
-    if (!env_config_1.envConfig.jwt_secret) {
-        throw new Error("JWT secret not found in environment variables");
+    console.log("envConfig inside jwtTokens.js:", env_config_1.envConfig);
+    if (!env_config_1.envConfig || !env_config_1.envConfig.jwt_secret) {
+        throw new Error("JWT secret not found: " + JSON.stringify(env_config_1.envConfig || "undefined"));
     }
     const token = jsonwebtoken_1.default.sign({
-        id: user.id,
+        id: user.id || user._id,
         name: user.name,
         email: user.email,
         phoneNumber: user.phoneNumber,
