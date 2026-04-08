@@ -20,7 +20,10 @@ const verifyAndDecodeToken = (token) => {
 };
 // Middleware to validate the token
 const validateServiceProvider = (0, asyncHandler_1.asyncHandler)(async function validateServiceProvider(req, res, next) {
-    const token = req.cookies.token || req.headers.authorization?.replace("Bearer ", "");
+    let token = req.cookies.token;
+    if (!token && req.headers.authorization && req.headers.authorization.toLowerCase().startsWith('bearer ')) {
+        token = req.headers.authorization.split(' ')[1];
+    }
     const decoded = verifyAndDecodeToken(token);
     req.user = decoded;
     next();
@@ -29,7 +32,10 @@ exports.validateServiceProvider = validateServiceProvider;
 // Middleware to validate the role
 const validateRoleAuth = (allowedRoles) => {
     return (0, asyncHandler_1.asyncHandler)(async (req, res, next) => {
-        const token = req.cookies.token || req.headers.authorization?.replace("Bearer ", "");
+        let token = req.cookies.token;
+        if (!token && req.headers.authorization && req.headers.authorization.toLowerCase().startsWith('bearer ')) {
+            token = req.headers.authorization.split(' ')[1];
+        }
         const decoded = verifyAndDecodeToken(token);
         if (!allowedRoles.includes(decoded.role)) {
             throw new ApiError_1.default(401, "Not authorized to perform this action");

@@ -12,8 +12,8 @@ const asyncHandler_1 = require("../utils/api/asyncHandler");
 const jwtTokens_1 = require("../utils/tokens/jwtTokens");
 const email_1 = require("../utils/services/email");
 const zod_1 = require("zod");
-/** Accept string or number from JSON clients; trim whitespace */
-const phoneInput = zod_1.z.preprocess((v) => (v == null ? "" : String(v).trim()), zod_1.z.string().min(7, "Phone number must be at least 7 characters"));
+/** Accept string or number from JSON clients; keep digits only */
+const phoneInput = zod_1.z.preprocess((v) => (v == null ? "" : String(v).replace(/\D/g, "").trim()), zod_1.z.string().min(7, "Phone number must be at least 7 digits"));
 const passwordInput = zod_1.z.preprocess((v) => (v == null ? "" : String(v).trim()), zod_1.z.string().min(8, "Password must be at least 8 characters"));
 const registerSchema = zod_1.z.object({
     name: zod_1.z.string().min(2),
@@ -47,7 +47,7 @@ const resetPasswordSchema = zod_1.z.object({
 });
 function toSafeUser(user) {
     return {
-        id: user.id,
+        id: user.id || user._id,
         name: user.name,
         age: user.age,
         email: user.email,
