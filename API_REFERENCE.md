@@ -203,7 +203,7 @@ Legacy user notes:
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/v1/service-provider/register` | No | Register service provider |
+| POST | `/api/v1/service-provider/register` | admin | Create service provider credentials |
 | POST | `/api/v1/service-provider/login` | No | Login service provider |
 | POST | `/api/v1/service-provider/verify` | No | Verify service provider |
 | POST | `/api/v1/service-provider/forgot-password` | No | Send forgot-password OTP |
