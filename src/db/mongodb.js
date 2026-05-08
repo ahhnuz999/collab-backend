@@ -22,7 +22,6 @@ async function connectMongoDB() {
     if (isMongoConnected) {
         return mongoose_1.default.connection;
     }
-    console.log("URI:", env_config_1.envConfig.mongodb_uri);
     console.log("DB NAME:", env_config_1.envConfig.mongodb_db_name);
     const connection = await mongoose_1.default.connect(env_config_1.envConfig.mongodb_uri, {
         dbName: env_config_1.envConfig.mongodb_db_name,

@@ -7,7 +7,6 @@ exports.verifyJWT = exports.generateJWT = void 0;
 const env_config_1 = require("../../config/env.config");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const generateJWT = (user) => {
-    console.log("envConfig inside jwtTokens.js:", env_config_1.envConfig);
     if (!env_config_1.envConfig || !env_config_1.envConfig.jwt_secret) {
         throw new Error("JWT secret not found: " + JSON.stringify(env_config_1.envConfig || "undefined"));
     }

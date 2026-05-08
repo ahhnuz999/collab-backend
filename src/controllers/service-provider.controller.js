@@ -122,9 +122,10 @@ const loginServiceProvider = (0, asyncHandler_1.asyncHandler)(async (req, res) =
     //     })
     //   );
     // }
-    const token = (0, jwtTokens_1.generateJWT)(existingServiceProvider);
     const loggedInServiceProvider = JSON.parse(JSON.stringify(existingServiceProvider));
     delete loggedInServiceProvider.password;
+    loggedInServiceProvider.role = "admin";
+    const token = (0, jwtTokens_1.generateJWT)(loggedInServiceProvider);
     res
         .status(200)
         .cookie("token", token)

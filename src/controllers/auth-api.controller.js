@@ -61,6 +61,25 @@ function toSafeUser(user) {
         updatedAt: user.updatedAt,
     };
 }
+function toSafeServiceProvider(provider) {
+    return {
+        id: provider.id || provider._id,
+        name: provider.name,
+        age: provider.age,
+        email: provider.email,
+        phoneNumber: String(provider.phoneNumber),
+        primaryAddress: provider.primaryAddress,
+        role: "admin",
+        serviceType: provider.serviceType,
+        serviceArea: provider.serviceArea,
+        serviceStatus: provider.serviceStatus,
+        currentLocation: provider.currentLocation || null,
+        vehicleInformation: provider.vehicleInformation || {},
+        pushToken: provider.pushToken || null,
+        createdAt: provider.createdAt,
+        updatedAt: provider.updatedAt,
+    };
+}
 /**
  * Registers a new mobile app user with a hashed password and optional medical profile.
  */
@@ -95,17 +114,32 @@ const login = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const user = (await models_1.UserModel.findOne({
         phoneNumber: Number(payload.phoneNumber),
     }));
-    if (!user) {
+    if (user) {
+        const isPasswordValid = await bcryptjs_1.default.compare(payload.password, user.password);
+        if (isPasswordValid) {
+            const token = (0, jwtTokens_1.generateJWT)(user.toObject());
+            return res.status(200).json(new ApiResponse_1.default(200, "Login successful", {
+                token,
+                user: toSafeUser(user.toObject()),
+            }));
+        }
+    }
+    const serviceProvider = (await models_1.ServiceProviderModel.findOne({
+        phoneNumber: Number(payload.phoneNumber),
+    }));
+    if (!serviceProvider) {
         throw new ApiError_1.default(401, "Invalid credentials");
     }
-    const isPasswordValid = await bcryptjs_1.default.compare(payload.password, user.password);
-    if (!isPasswordValid) {
+    const isServiceProviderPasswordValid = await bcryptjs_1.default.compare(payload.password, serviceProvider.password);
+    if (!isServiceProviderPasswordValid) {
         throw new ApiError_1.default(401, "Invalid credentials");
     }
-    const token = (0, jwtTokens_1.generateJWT)(user.toObject());
+    const safeServiceProvider = toSafeServiceProvider(serviceProvider.toObject());
+    const token = (0, jwtTokens_1.generateJWT)(safeServiceProvider);
     return res.status(200).json(new ApiResponse_1.default(200, "Login successful", {
         token,
-        user: toSafeUser(user.toObject()),
+        user: safeServiceProvider,
+        serviceProvider: safeServiceProvider,
     }));
 });
 exports.login = login;

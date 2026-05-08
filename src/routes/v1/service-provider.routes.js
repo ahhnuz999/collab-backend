@@ -4,15 +4,14 @@ const service_provider_controller_1 = require("../../controllers/service-provide
 const auth_middleware_1 = require("../../middlewares/auth.middleware");
 const express_1 = require("express");
 const serviceProviderRouter = (0, express_1.Router)();
-const validateAdmin = (0, auth_middleware_1.validateRoleAuth)(["admin"]);
 // Public routes
 serviceProviderRouter.post("/login", service_provider_controller_1.loginServiceProvider);
 serviceProviderRouter.post("/verify", service_provider_controller_1.verifyServiceProvider);
 serviceProviderRouter.post("/forgot-password", service_provider_controller_1.forgotServiceProviderPassword);
 serviceProviderRouter.post("/reset-password", service_provider_controller_1.resetServiceProviderPassword);
 serviceProviderRouter.get("/nearby", service_provider_controller_1.getNearbyProviders);
-// Admin-created credentials only
-serviceProviderRouter.post("/register", validateAdmin, service_provider_controller_1.registerServiceProvider);
+// Public service provider registration (service provider is the app admin identity)
+serviceProviderRouter.post("/register", service_provider_controller_1.registerServiceProvider);
 // Protected routes
 serviceProviderRouter.use(auth_middleware_1.validateServiceProvider);
 serviceProviderRouter.post("/logout", service_provider_controller_1.logoutServiceProvider);
