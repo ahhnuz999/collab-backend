@@ -160,16 +160,14 @@ Reset-password notes:
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
+| GET | `/api/admin/emergencies` | admin | List/manage emergency requests with optional `status`, `serviceType`, `assigned`, `page`, and `limit` filters |
 | GET | `/api/admin/emergencies/active` | admin | List active emergencies |
+| GET | `/api/admin/emergencies/:id/track` | admin | Track a request with requester, responder, timestamps, and incident log |
+| POST | `/api/admin/emergencies/:id/approve` | admin | Approve a pending emergency request |
+| POST | `/api/admin/emergencies/:id/reject` | admin | Reject an emergency request and release any assigned responder |
 | POST | `/api/admin/emergencies/:id/assign` | admin | Assign a service provider |
 
 ## Legacy API
-
-### App-level
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/v1/users` | No | Lists all users; currently public |
 
 ### Health (`/api/v1/healthcheck`)
 
@@ -292,7 +290,6 @@ Optional query params:
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/notifications` | user | List notifications |
-| POST | `/api/v1/notifications` | user | Create or fetch notifications, depending on controller behavior |
 | PUT | `/api/v1/notifications/:id/read` | user | Mark notification as read |
 | POST | `/api/v1/notifications/token` | user | Register notification token |
 

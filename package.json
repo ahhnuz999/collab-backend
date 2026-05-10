@@ -22,7 +22,7 @@
     "cookie": "^1.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.6.1",
     "expo-server-sdk": "^3.15.0",
     "express": "^4.21.2",
     "haversine-distance": "^1.2.3",

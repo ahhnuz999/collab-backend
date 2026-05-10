@@ -17,7 +17,6 @@ const ApiResponse_1 = __importDefault(require("./utils/api/ApiResponse"));
 const mongodb_1 = require("./db/mongodb");
 const rate_limit_middleware_1 = require("./middlewares/rate-limit.middleware");
 const error_middleware_1 = require("./middlewares/error.middleware");
-const models_1 = require("./db/models");
 const app = (0, express_1.default)();
 const port = env_config_1.envConfig.port;
 const host = env_config_1.envConfig.host;
@@ -71,34 +70,6 @@ app.get("/", (_req, res) => {
         legacyApiBaseUrl: `/api/v1`,
         healthcheck: `/api/v1/healthcheck`,
     }));
-});
-// ✅ New GET /users route
-app.get("/api/v1/users", async (_req, res) => {
-    try {
-        const users = await models_1.UserModel.find({})
-            .select({
-            _id: 0,
-            id: 1,
-            name: 1,
-            age: 1,
-            phoneNumber: 1,
-            email: 1,
-            primaryAddress: 1,
-            role: 1,
-            currentLocation: 1,
-            medicalInfo: 1,
-            createdAt: 1,
-            updatedAt: 1,
-        })
-            .sort({ createdAt: -1 })
-            .lean();
-        res.status(200).json(new ApiResponse_1.default(200, "Fetched users successfully", users));
-    }
-    catch (err) {
-        res.status(500).json(new ApiResponse_1.default(500, "Error fetching users", {
-            error: err.message,
-        }));
-    }
 });
 app.use("/api", routes_1.apiRouter);
 // V1 API routes

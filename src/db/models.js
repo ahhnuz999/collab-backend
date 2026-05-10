@@ -61,7 +61,7 @@ function withBaseFields(definition) {
     return {
         id: {
             type: String,
-            default: crypto_1.randomUUID,
+            default: () => (0, crypto_1.randomUUID)(),
             unique: true,
             index: true,
         },
@@ -141,7 +141,7 @@ exports.EmergencyRequestModel = mongoose_1.default.model("EmergencyRequest", new
     },
     requestStatus: {
         type: String,
-        enum: ["pending", "assigned", "rejected", "in_progress", "completed"],
+        enum: ["pending", "approved", "assigned", "rejected", "in_progress", "completed"],
         default: "pending",
     },
     requestTime: { type: Date, default: Date.now },
