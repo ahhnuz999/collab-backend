@@ -188,9 +188,34 @@ const getEmergencyResponse = (0, asyncHandler_1.asyncHandler)(async (req, res) =
         console.log("Emergency response not found");
         throw new ApiError_1.default(404, "Emergency response not found");
     }
+    const [emergencyRequestDetails, serviceProviderDetails] = await Promise.all([
+        existingEmergencyResponse.emergencyRequestId
+            ? db_1.default.query.emergencyRequest.findFirst({
+                where: (0, query_1.eq)(schema_1.emergencyRequest.id, existingEmergencyResponse.emergencyRequestId),
+            })
+            : null,
+        existingEmergencyResponse.serviceProviderId
+            ? db_1.default.query.serviceProvider.findFirst({
+                where: (0, query_1.eq)(schema_1.serviceProvider.id, existingEmergencyResponse.serviceProviderId),
+                columns: {
+                    id: true,
+                    name: true,
+                    phoneNumber: true,
+                    serviceType: true,
+                    serviceStatus: true,
+                    currentLocation: true,
+                    vehicleInformation: true,
+                },
+            })
+            : null,
+    ]);
     res
         .status(200)
-        .json(new ApiResponse_1.default(200, "Emergency response found", schema_1.emergencyResponse));
+        .json(new ApiResponse_1.default(200, "Emergency response found", {
+        emergencyResponse: existingEmergencyResponse,
+        emergencyRequest: emergencyRequestDetails,
+        serviceProvider: serviceProviderDetails,
+    }));
 });
 exports.getEmergencyResponse = getEmergencyResponse;
 const updateEmergencyResponse = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
