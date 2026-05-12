@@ -6,7 +6,6 @@ const auth_middleware_1 = require("../../middlewares/auth.middleware");
 const router = (0, express_1.Router)();
 const authenticateUser = (0, auth_middleware_1.validateRoleAuth)(["user"]);
 router.get("/", authenticateUser, notification_controller_1.getNotifications);
-router.post("/", authenticateUser, notification_controller_1.getNotifications);
 router.put("/:id/read", authenticateUser, notification_controller_1.markAsRead);
 router.post("/token", authenticateUser, notification_controller_1.getTokens);
 exports.default = router;

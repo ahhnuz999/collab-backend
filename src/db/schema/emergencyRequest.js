@@ -7,6 +7,7 @@ const helpers_1 = require("./helpers");
 const enums_1 = require("./enums");
 exports.requestStatusValues = [
     "pending",
+    "approved",
     "assigned",
     "rejected",
     "in_progress",
