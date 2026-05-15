@@ -10,6 +10,7 @@ exports.requestStatusValues = [
     "approved",
     "assigned",
     "rejected",
+    "cancelled",
     "in_progress",
     "completed",
 ];
@@ -27,6 +28,7 @@ exports.emergencyRequest = (0, helpers_1.createTable)("emergencyRequest", models
     "arrivalTime",
     "description",
     "location",
+    "locationName",
     "createdAt",
     "updatedAt",
 ]);
@@ -43,6 +45,7 @@ exports.emergencyRequestSchema = zod_1.z.object({
         latitude: zod_1.z.string(),
         longitude: zod_1.z.string(),
     }),
+    locationName: zod_1.z.string().optional(),
     createdAt: zod_1.z.coerce.date().optional(),
     updatedAt: zod_1.z.coerce.date().optional(),
 });
@@ -51,4 +54,5 @@ exports.newEmergencyRequestSchema = exports.emergencyRequestSchema.pick({
     serviceType: true,
     description: true,
     location: true,
+    locationName: true,
 });

@@ -3,13 +3,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getRecentEmergencyRequests = exports.deleteEmergencyRequest = exports.updateEmergencyRequest = exports.getUsersEmergencyRequests = exports.getEmergencyRequest = exports.createEmergencyRequest = void 0;
+exports.getRecentEmergencyRequests = exports.cancelEmergencyRequest = exports.deleteEmergencyRequest = exports.updateEmergencyRequest = exports.getUsersEmergencyRequests = exports.getEmergencyRequest = exports.createEmergencyRequest = void 0;
 const asyncHandler_1 = require("../utils/api/asyncHandler");
 const db_1 = __importDefault(require("../db"));
 const ApiError_1 = __importDefault(require("../utils/api/ApiError"));
 const query_1 = require("../db/query");
 const schema_1 = require("../db/schema");
 const ApiResponse_1 = __importDefault(require("../utils/api/ApiResponse"));
+const user_history_service_1 = require("../services/user-history.service");
+const models_1 = require("../db/models");
 const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { emergencyType, emergencyDescription, userLocation } = req.body;
     const loggedInUser = req.user;
@@ -36,11 +38,14 @@ const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         currentLocation: userLocation,
     })
         .where((0, query_1.eq)(schema_1.user.id, loggedInUser.id));
+    const user = await models_1.UserModel.findOne({ id: loggedInUser.id }).lean();
+    const locationName = (await (0, user_history_service_1.resolveLocationName)(userLocation)) || user?.primaryAddress || "";
     const parsedValues = schema_1.newEmergencyRequestSchema.safeParse({
         userId: loggedInUser.id,
         serviceType: String(emergencyType).toLowerCase(),
         description: emergencyDescription,
         location: userLocation,
+        locationName,
     });
     if (!parsedValues.success) {
         console.log("Parsing Error: ", parsedValues.error.errors);
@@ -55,6 +60,7 @@ const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         emergencyType: schema_1.emergencyRequest.serviceType,
         emergencyDescription: schema_1.emergencyRequest.description,
         emergencyLocation: schema_1.emergencyRequest.location,
+        locationName: schema_1.emergencyRequest.locationName,
         status: schema_1.emergencyRequest.requestStatus,
         currentLocation: schema_1.emergencyRequest.location,
     });
@@ -62,6 +68,16 @@ const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         console.log("Error creating emergency request");
         throw new ApiError_1.default(500, "Error creating emergency request");
     }
+    await (0, user_history_service_1.recordUserRequestHistory)({
+        id: newEmergencyRequest[0].id,
+        userId: newEmergencyRequest[0].userId,
+        serviceType: newEmergencyRequest[0].emergencyType,
+        requestStatus: newEmergencyRequest[0].status,
+        description: newEmergencyRequest[0].emergencyDescription,
+        location: newEmergencyRequest[0].emergencyLocation,
+        locationName: newEmergencyRequest[0].locationName,
+        requestTime: new Date(),
+    }, "Emergency request submitted");
     res.status(201).json(new ApiResponse_1.default(201, "Emergency request created", {
         emergencyRequest: newEmergencyRequest[0],
     }));
@@ -83,9 +99,7 @@ const getUsersEmergencyRequests = (0, asyncHandler_1.asyncHandler)(async (req, r
         console.log("User ID is required");
         throw new ApiError_1.default(400, "User ID is required");
     }
-    const emergencyRequests = await db_1.default.query.emergencyRequest.findMany({
-        where: (0, query_1.eq)(schema_1.emergencyRequest.userId, loggedInUser.id),
-    });
+    const emergencyRequests = await (0, user_history_service_1.getUserRequestHistory)(loggedInUser.id, 100);
     return res
         .status(200)
         .json(new ApiResponse_1.default(200, "Emergency requests found", emergencyRequests));
@@ -125,12 +139,22 @@ const updateEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         emergencyType: schema_1.emergencyRequest.serviceType,
         emergencyDescription: schema_1.emergencyRequest.description,
         emergencyLocation: schema_1.emergencyRequest.location,
+        locationName: schema_1.emergencyRequest.locationName,
         requestStatus: schema_1.emergencyRequest.requestStatus,
     });
     if (!updatedEmergencyRequest) {
         console.log("Error updating emergency request");
         throw new ApiError_1.default(500, "Error updating emergency request");
     }
+    await (0, user_history_service_1.recordUserRequestHistory)({
+        id: updatedEmergencyRequest[0].id,
+        userId: updatedEmergencyRequest[0].userId,
+        serviceType: updatedEmergencyRequest[0].emergencyType,
+        requestStatus: updatedEmergencyRequest[0].requestStatus,
+        description: updatedEmergencyRequest[0].emergencyDescription,
+        location: updatedEmergencyRequest[0].emergencyLocation,
+        locationName: updatedEmergencyRequest[0].locationName,
+    }, `Emergency request updated${status ? ` to ${status}` : ""}`);
     res
         .status(200)
         .json(new ApiResponse_1.default(200, "Emergency request updated", updatedEmergencyRequest));
@@ -178,6 +202,67 @@ const deleteEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         .json(new ApiResponse_1.default(200, "Emergency request deleted", deletedEmergencyRequest));
 });
 exports.deleteEmergencyRequest = deleteEmergencyRequest;
+const cancelEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    let { id } = req.params;
+    const loggedInUser = req.user;
+    if (!loggedInUser?.id) {
+        throw new ApiError_1.default(401, "Unauthorized");
+    }
+    let existingEmergencyRequest = await db_1.default.query.emergencyRequest.findFirst({
+        where: (0, query_1.eq)(schema_1.emergencyRequest.id, id),
+    });
+    if (!existingEmergencyRequest) {
+        const historyRequest = await models_1.UserRequestHistoryModel.findOne({
+            id,
+            userId: loggedInUser.id,
+        }).lean();
+        if (historyRequest?.emergencyRequestId) {
+            id = historyRequest.emergencyRequestId;
+            existingEmergencyRequest = await db_1.default.query.emergencyRequest.findFirst({
+                where: (0, query_1.eq)(schema_1.emergencyRequest.id, id),
+            });
+        }
+    }
+    if (!existingEmergencyRequest) {
+        throw new ApiError_1.default(404, "Emergency request not found");
+    }
+    if (existingEmergencyRequest.userId !== loggedInUser.id) {
+        throw new ApiError_1.default(403, "Not authorized to cancel this request");
+    }
+    if (["completed", "rejected", "cancelled"].includes(existingEmergencyRequest.requestStatus)) {
+        throw new ApiError_1.default(409, `Emergency request is already ${existingEmergencyRequest.requestStatus}`);
+    }
+    const updatedEmergencyRequest = await db_1.default
+        .update(schema_1.emergencyRequest)
+        .set({ requestStatus: "cancelled" })
+        .where((0, query_1.eq)(schema_1.emergencyRequest.id, id))
+        .returning({
+        id: schema_1.emergencyRequest.id,
+        userId: schema_1.emergencyRequest.userId,
+        serviceType: schema_1.emergencyRequest.serviceType,
+        requestStatus: schema_1.emergencyRequest.requestStatus,
+        requestTime: schema_1.emergencyRequest.requestTime,
+        dispatchTime: schema_1.emergencyRequest.dispatchTime,
+        arrivalTime: schema_1.emergencyRequest.arrivalTime,
+        description: schema_1.emergencyRequest.description,
+        location: schema_1.emergencyRequest.location,
+        locationName: schema_1.emergencyRequest.locationName,
+        createdAt: schema_1.emergencyRequest.createdAt,
+        updatedAt: schema_1.emergencyRequest.updatedAt,
+    });
+    await (0, user_history_service_1.recordUserRequestHistory)(updatedEmergencyRequest[0], "Emergency request cancelled by user");
+    const responseEntry = await models_1.EmergencyResponseModel.findOneAndUpdate({ emergencyRequestId: id }, {
+        statusUpdate: "rejected",
+        updateDescription: "Emergency request cancelled by user",
+    }, { new: true }).lean();
+    if (responseEntry?.serviceProviderId) {
+        await models_1.ServiceProviderModel.updateOne({ id: responseEntry.serviceProviderId }, { serviceStatus: "available" });
+    }
+    return res
+        .status(200)
+        .json(new ApiResponse_1.default(200, "Emergency request cancelled", updatedEmergencyRequest[0]));
+});
+exports.cancelEmergencyRequest = cancelEmergencyRequest;
 const getRecentEmergencyRequests = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const userId = req.user?.id;
     console.log("userId", userId);
@@ -187,11 +272,7 @@ const getRecentEmergencyRequests = (0, asyncHandler_1.asyncHandler)(async (req, 
             message: "Unauthorized",
         });
     }
-    const recentRequests = await db_1.default.query.emergencyRequest.findMany({
-        where: (0, query_1.eq)(schema_1.emergencyRequest.userId, userId),
-        orderBy: [(0, query_1.desc)(schema_1.emergencyRequest.requestTime)],
-        limit: 10,
-    });
+    const recentRequests = await (0, user_history_service_1.getUserRequestHistory)(userId, 10);
     return res
         .status(200)
         .json(new ApiResponse_1.default(200, "Recent emergency requests", recentRequests));

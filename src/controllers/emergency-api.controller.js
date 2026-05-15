@@ -8,6 +8,7 @@ const env_config_1 = require("../config/env.config");
 const constants_1 = require("../constants");
 const models_1 = require("../db/models");
 const notification_service_1 = require("../services/notification.service");
+const user_history_service_1 = require("../services/user-history.service");
 const ApiError_1 = __importDefault(require("../utils/api/ApiError"));
 const ApiResponse_1 = __importDefault(require("../utils/api/ApiResponse"));
 const asyncHandler_1 = require("../utils/api/asyncHandler");
@@ -20,6 +21,7 @@ const requestStatusSchema = zod_1.z.enum([
     "approved",
     "assigned",
     "rejected",
+    "cancelled",
     "in_progress",
     "completed",
 ]);
@@ -91,6 +93,7 @@ function serializeEmergency(request, response) {
                 ? "fire"
                 : request.serviceType,
         coordinates: request.location,
+        locationName: request.locationName || "",
         timestamp: request.requestTime,
         description: request.description || "",
         requestStatus: request.requestStatus,
@@ -121,9 +124,10 @@ async function serializeAdminEmergency(request, response) {
             ? {
                 id: requester.id,
                 name: requester.name,
-                phoneNumber: String(requester.phoneNumber),
-                email: requester.email,
-                currentLocation: requester.currentLocation || null,
+        phoneNumber: String(requester.phoneNumber),
+        email: requester.email,
+        primaryAddress: requester.primaryAddress,
+        currentLocation: requester.currentLocation || null,
             }
             : null,
         responderDetails: responder
@@ -158,6 +162,7 @@ async function buildIncidentLog(request) {
                 name: requester.name,
                 phoneNumber: String(requester.phoneNumber),
                 email: requester.email,
+                primaryAddress: requester.primaryAddress,
             }
             : null,
         location: request.location,
@@ -207,6 +212,7 @@ const createSosAlert = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     }
     user.currentLocation = payload.coordinates;
     await user.save();
+    const locationName = (await (0, user_history_service_1.resolveLocationName)(payload.coordinates)) || user.primaryAddress || "";
     const emergency = (await models_1.EmergencyRequestModel.create({
         userId,
         serviceType: mapEmergencyTypeToServiceType(payload.emergencyType),
@@ -214,7 +220,9 @@ const createSosAlert = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         requestTime: payload.timestamp || new Date(),
         description: payload.description || "",
         location: payload.coordinates,
+        locationName,
     }));
+    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "SOS alert submitted");
     const nearbyResponders = await findNearbyResponders(payload.coordinates, emergency.serviceType);
     await (0, notification_service_1.notifyEmergencyNetwork)(userId, {
         emergencyId: emergency.id,
@@ -273,7 +281,7 @@ const getEmergencyById = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     }).lean());
     return res
         .status(200)
-        .json(new ApiResponse_1.default(200, "Emergency retrieved", serializeEmergency(emergency, responseEntry)));
+        .json(new ApiResponse_1.default(200, "Emergency retrieved", await serializeAdminEmergency(emergency, responseEntry || undefined)));
 });
 exports.getEmergencyById = getEmergencyById;
 /**
@@ -297,6 +305,7 @@ const updateEmergencyStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) 
         emergency.arrivalTime = new Date();
     }
     await emergency.save();
+    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), `Emergency status updated to ${emergency.requestStatus}`);
     const responseEntry = (await models_1.EmergencyResponseModel.findOne({
         emergencyRequestId: emergency.id,
     }));
@@ -334,7 +343,7 @@ exports.getIncidentHistory = getIncidentHistory;
  */
 const getActiveEmergencies = (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
     const activeEmergencies = (await models_1.EmergencyRequestModel.find({
-        requestStatus: { $nin: ["completed", "rejected"] },
+        requestStatus: { $nin: ["completed", "rejected", "cancelled"] },
     })
         .sort({ requestTime: -1 })
         .lean());
@@ -354,15 +363,16 @@ exports.getActiveEmergencies = getActiveEmergencies;
  */
 const getAdminEmergencyRequests = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const query = adminEmergencyQuerySchema.parse(req.query);
+    const responder = await models_1.ServiceProviderModel.findOne({ id: req.user.id }).lean();
     const filter = {};
     if (query.status === "active" || !query.status) {
-        filter.requestStatus = { $nin: ["completed", "rejected"] };
+        filter.requestStatus = { $nin: ["completed", "rejected", "cancelled"] };
     }
     else {
         filter.requestStatus = query.status;
     }
-    if (query.serviceType) {
-        filter.serviceType = query.serviceType;
+    if (query.serviceType || responder?.serviceType) {
+        filter.serviceType = query.serviceType || responder.serviceType;
     }
     const emergencies = (await models_1.EmergencyRequestModel.find(filter)
         .sort({ requestTime: -1 })
@@ -371,7 +381,10 @@ const getAdminEmergencyRequests = (0, asyncHandler_1.asyncHandler)(async (req, r
         emergencyRequestId: { $in: emergencies.map((emergency) => emergency.id) },
     }).lean());
     const responsesByEmergencyId = new Map(responses.map((response) => [response.emergencyRequestId, response]));
-    let filteredEmergencies = emergencies;
+    let filteredEmergencies = emergencies.filter((emergency) => {
+        const response = responsesByEmergencyId.get(emergency.id);
+        return !response?.serviceProviderId || response.serviceProviderId === req.user.id;
+    });
     if (query.assigned) {
         const shouldBeAssigned = query.assigned === "true";
         filteredEmergencies = filteredEmergencies.filter((emergency) => responsesByEmergencyId.has(emergency.id) === shouldBeAssigned);
@@ -423,24 +436,48 @@ const approveEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res
     if (!emergency) {
         throw new ApiError_1.default(404, "Emergency not found");
     }
-    if (["assigned", "in_progress", "completed"].includes(emergency.requestStatus)) {
+    if (["approved", "assigned", "in_progress", "completed"].includes(emergency.requestStatus)) {
         throw new ApiError_1.default(409, `Emergency is already ${emergency.requestStatus}`);
     }
-    if (emergency.requestStatus === "rejected") {
-        throw new ApiError_1.default(409, "Rejected emergencies cannot be approved");
+    if (["rejected", "cancelled"].includes(emergency.requestStatus)) {
+        throw new ApiError_1.default(409, `${emergency.requestStatus} emergencies cannot be approved`);
+    }
+    const responder = await models_1.ServiceProviderModel.findOne({ id: req.user.id });
+    if (!responder) {
+        throw new ApiError_1.default(404, "Responder profile not found");
+    }
+    if (responder.serviceType !== emergency.serviceType) {
+        throw new ApiError_1.default(403, `Only ${emergency.serviceType} responders can accept this request`);
+    }
+    const existingResponse = await models_1.EmergencyResponseModel.findOne({ emergencyRequestId: emergency.id }).lean();
+    if (existingResponse?.serviceProviderId && existingResponse.serviceProviderId !== req.user.id) {
+        throw new ApiError_1.default(409, "Another responder already accepted this request");
     }
     emergency.requestStatus = "approved";
     await emergency.save();
-    if (payload.note) {
-        await models_1.EmergencyResponseModel.updateOne({ emergencyRequestId: emergency.id }, { updateDescription: payload.note });
+    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "Emergency request approved");
+    const responseEntry = (await models_1.EmergencyResponseModel.findOneAndUpdate({ emergencyRequestId: emergency.id }, {
+        emergencyRequestId: emergency.id,
+        serviceProviderId: req.user.id,
+        statusUpdate: "accepted",
+        originLocation: responder?.currentLocation || {
+            latitude: "",
+            longitude: "",
+        },
+        destinationLocation: emergency.location,
+        assignedAt: new Date(),
+        respondedAt: new Date(),
+        updateDescription: payload.note || "Accepted from admin dashboard",
+    }, { new: true, upsert: true }).lean());
+    if (responder) {
+        responder.serviceStatus = "assigned";
+        await responder.save();
     }
     getSocket(req).to(constants_1.SocketRoom.USER(emergency.userId)).emit(constants_1.SocketEventEnums.RECEIVE_ALERT, {
         emergencyId: emergency.id,
         status: "approved",
+        assignedResponder: req.user.id,
     });
-    const responseEntry = (await models_1.EmergencyResponseModel.findOne({
-        emergencyRequestId: emergency.id,
-    }).lean());
     return res
         .status(200)
         .json(new ApiResponse_1.default(200, "Emergency request approved", await serializeAdminEmergency(emergency.toObject(), responseEntry || undefined)));
@@ -461,6 +498,7 @@ const rejectEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
     }
     emergency.requestStatus = "rejected";
     await emergency.save();
+    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), payload.reason || "Emergency request rejected");
     const responseEntry = (await models_1.EmergencyResponseModel.findOneAndUpdate({ emergencyRequestId: emergency.id }, {
         statusUpdate: "rejected",
         updateDescription: payload.reason || "Emergency rejected by admin",
@@ -497,7 +535,7 @@ const assignResponder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (!responder) {
         throw new ApiError_1.default(404, "Responder not found");
     }
-    if (["completed", "rejected"].includes(emergency.requestStatus)) {
+    if (["completed", "rejected", "cancelled"].includes(emergency.requestStatus)) {
         throw new ApiError_1.default(409, `Cannot assign responder to a ${emergency.requestStatus} emergency`);
     }
     if (responder.serviceStatus !== "available") {
@@ -509,6 +547,7 @@ const assignResponder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     emergency.requestStatus = "assigned";
     emergency.dispatchTime = new Date();
     await emergency.save();
+    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "Responder assigned");
     responder.serviceStatus = "assigned";
     await responder.save();
     const responseEntry = (await models_1.EmergencyResponseModel.findOneAndUpdate({ emergencyRequestId: emergency.id }, {

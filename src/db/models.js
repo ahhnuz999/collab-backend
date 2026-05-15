@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.appModels = exports.NotificationModel = exports.FeedbackModel = exports.EmergencyContactModel = exports.EmergencyResponseModel = exports.EmergencyRequestModel = exports.ServiceProviderModel = exports.OrganizationModel = exports.UserModel = void 0;
+exports.appModels = exports.NotificationModel = exports.FeedbackModel = exports.EmergencyContactModel = exports.EmergencyResponseModel = exports.UserRequestHistoryModel = exports.EmergencyRequestModel = exports.ServiceProviderModel = exports.OrganizationModel = exports.UserModel = void 0;
 const crypto_1 = require("crypto");
 const mongoose_1 = __importStar(require("mongoose"));
 const locationSchema = new mongoose_1.Schema({
@@ -141,7 +141,7 @@ exports.EmergencyRequestModel = mongoose_1.default.model("EmergencyRequest", new
     },
     requestStatus: {
         type: String,
-        enum: ["pending", "approved", "assigned", "rejected", "in_progress", "completed"],
+        enum: ["pending", "approved", "assigned", "rejected", "cancelled", "in_progress", "completed"],
         default: "pending",
     },
     requestTime: { type: Date, default: Date.now },
@@ -149,7 +149,35 @@ exports.EmergencyRequestModel = mongoose_1.default.model("EmergencyRequest", new
     arrivalTime: Date,
     description: String,
     location: { type: locationSchema, required: true },
+    locationName: { type: String, default: "" },
 }), baseOptions));
+const requestHistoryEventSchema = new mongoose_1.Schema({
+    status: { type: String, required: true },
+    message: { type: String, default: "" },
+    at: { type: Date, default: Date.now },
+}, { _id: false });
+exports.UserRequestHistoryModel = mongoose_1.default.model("UserRequestHistory", new mongoose_1.Schema(withBaseFields({
+    userId: { type: String, required: true, index: true },
+    emergencyRequestId: { type: String, required: true, unique: true, index: true },
+    serviceType: {
+        type: String,
+        enum: ["ambulance", "police", "rescue_team", "fire_truck"],
+        required: true,
+    },
+    requestStatus: {
+        type: String,
+        enum: ["pending", "approved", "assigned", "rejected", "cancelled", "in_progress", "completed"],
+        default: "pending",
+    },
+    requestTime: { type: Date, default: Date.now },
+    dispatchTime: Date,
+    arrivalTime: Date,
+    description: String,
+    location: { type: locationSchema, required: true },
+    locationName: { type: String, default: "" },
+    events: { type: [requestHistoryEventSchema], default: [] },
+    lastEventAt: { type: Date, default: Date.now },
+}), baseOptions), "user_request_history");
 exports.EmergencyResponseModel = mongoose_1.default.model("EmergencyResponse", new mongoose_1.Schema(withBaseFields({
     emergencyRequestId: { type: String, index: true },
     serviceProviderId: { type: String, index: true },
@@ -197,6 +225,7 @@ exports.appModels = [
     exports.UserModel,
     exports.EmergencyContactModel,
     exports.EmergencyRequestModel,
+    exports.UserRequestHistoryModel,
     exports.EmergencyResponseModel,
     exports.FeedbackModel,
     exports.NotificationModel,

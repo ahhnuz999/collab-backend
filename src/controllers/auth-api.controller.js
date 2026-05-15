@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPassword = exports.register = exports.login = exports.forgotPassword = void 0;
+exports.updateMyProfile = exports.updateMyLocation = exports.resetPassword = exports.register = exports.login = exports.forgotPassword = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const models_1 = require("../db/models");
 const ApiError_1 = __importDefault(require("../utils/api/ApiError"));
@@ -45,6 +45,16 @@ const resetPasswordSchema = zod_1.z.object({
     userId: zod_1.z.string().min(1),
     otpToken: zod_1.z.string().min(1),
     password: passwordInput,
+});
+const locationSchema = zod_1.z.object({
+    latitude: zod_1.z.coerce.string().min(1),
+    longitude: zod_1.z.coerce.string().min(1),
+});
+const profileSchema = zod_1.z.object({
+    name: zod_1.z.string().min(2).optional(),
+    email: zod_1.z.string().email().optional(),
+    phoneNumber: phoneInput.optional(),
+    primaryAddress: zod_1.z.string().min(3).optional(),
 });
 function toSafeUser(user) {
     return {
@@ -190,3 +200,44 @@ const resetPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     }));
 });
 exports.resetPassword = resetPassword;
+const updateMyLocation = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const location = locationSchema.parse(req.body);
+    const userId = req.user?.id;
+    if (!userId) {
+        throw new ApiError_1.default(401, "Unauthorized");
+    }
+    const serviceProvider = await models_1.ServiceProviderModel.findOneAndUpdate({ id: userId }, { currentLocation: location }, { new: true }).lean();
+    if (serviceProvider) {
+        return res.status(200).json(new ApiResponse_1.default(200, "Location updated", toSafeServiceProvider(serviceProvider)));
+    }
+    const user = await models_1.UserModel.findOneAndUpdate({ id: userId }, { currentLocation: location }, { new: true }).lean();
+    if (!user) {
+        throw new ApiError_1.default(404, "Account not found");
+    }
+    return res.status(200).json(new ApiResponse_1.default(200, "Location updated", toSafeUser(user)));
+});
+exports.updateMyLocation = updateMyLocation;
+const updateMyProfile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const payload = profileSchema.parse(req.body);
+    const userId = req.user?.id;
+    if (!userId) {
+        throw new ApiError_1.default(401, "Unauthorized");
+    }
+    if (Object.keys(payload).length === 0) {
+        throw new ApiError_1.default(400, "No profile data provided");
+    }
+    const updateData = { ...payload };
+    if (payload.phoneNumber) {
+        updateData.phoneNumber = Number(payload.phoneNumber);
+    }
+    const serviceProvider = await models_1.ServiceProviderModel.findOneAndUpdate({ id: userId }, updateData, { new: true }).lean();
+    if (serviceProvider) {
+        return res.status(200).json(new ApiResponse_1.default(200, "Profile updated", toSafeServiceProvider(serviceProvider)));
+    }
+    const user = await models_1.UserModel.findOneAndUpdate({ id: userId }, updateData, { new: true }).lean();
+    if (!user) {
+        throw new ApiError_1.default(404, "Account not found");
+    }
+    return res.status(200).json(new ApiResponse_1.default(200, "Profile updated", toSafeUser(user)));
+});
+exports.updateMyProfile = updateMyProfile;

@@ -1,0 +1,15 @@
+C:\Users\Nitro\OneDrive\ドキュメント\collab-underDawgs\emerg-frontend\node_modules\expo\node_modules\@expo\cli\build\src\utils\errors.js:130
+    throw error;
+    ^
+
+Error: EPERM: operation not permitted, open 'C:\Users\Nitro\OneDrive\ドキュメント\collab-underDawgs\emerg-frontend\.gitignore'
+    at Object.readFileSync (node:fs:440:20)
+    at upsertGitIgnoreContents (C:\Users\Nitro\OneDrive\ドキュメント\collab-underDawgs\emerg-frontend\node_modules\expo\node_modules\@expo\cli\src\utils\mergeGitIgnorePaths.ts:121:30)
+    at startTypescriptTypeGenerationAsync (C:\Users\Nitro\OneDrive\ドキュメント\collab-underDawgs\emerg-frontend\node_modules\expo\node_modules\@expo\cli\src\start\server\type-generation\startTypescriptTypeGeneration.ts:46:30) {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'open',
+  path: 'C:\\Users\\Nitro\\OneDrive\\ドキュメント\\collab-underDawgs\\emerg-frontend\\.gitignore'
+}
+
+Node.js v24.14.1

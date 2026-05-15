@@ -9,6 +9,7 @@ emergencyRequestRouter
     .get((0, auth_middleware_1.validateRoleAuth)(["user"]), emergency_request_controller_1.getUsersEmergencyRequests)
     .post((0, auth_middleware_1.validateRoleAuth)(["user"]), emergency_request_controller_1.createEmergencyRequest);
 emergencyRequestRouter.get("/recent", (0, auth_middleware_1.validateRoleAuth)(["user"]), emergency_request_controller_1.getRecentEmergencyRequests);
+emergencyRequestRouter.post("/:id/cancel", (0, auth_middleware_1.validateRoleAuth)(["user"]), emergency_request_controller_1.cancelEmergencyRequest);
 emergencyRequestRouter
     .route("/:id")
     .get(emergency_request_controller_1.getEmergencyRequest)
