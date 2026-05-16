@@ -13,7 +13,7 @@ const ApiResponse_1 = __importDefault(require("../utils/api/ApiResponse"));
 const user_history_service_1 = require("../services/user-history.service");
 const models_1 = require("../db/models");
 const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { emergencyType, emergencyDescription, userLocation } = req.body;
+    const { emergencyType, emergencyDescription, userLocation, locationSource } = req.body;
     const loggedInUser = req.user;
     if (!loggedInUser.id) {
         console.log("User ID is required");
@@ -32,12 +32,14 @@ const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         console.log("Invalid emergency location coordinates");
         throw new ApiError_1.default(400, "Invalid emergency location coordinates");
     }
-    const updateUserLocation = await db_1.default
-        .update(schema_1.user)
-        .set({
-        currentLocation: userLocation,
-    })
-        .where((0, query_1.eq)(schema_1.user.id, loggedInUser.id));
+    if (locationSource !== "manual") {
+        await db_1.default
+            .update(schema_1.user)
+            .set({
+            currentLocation: userLocation,
+        })
+            .where((0, query_1.eq)(schema_1.user.id, loggedInUser.id));
+    }
     const user = await models_1.UserModel.findOne({ id: loggedInUser.id }).lean();
     const locationName = (await (0, user_history_service_1.resolveLocationName)(userLocation)) || user?.primaryAddress || "";
     const parsedValues = schema_1.newEmergencyRequestSchema.safeParse({
