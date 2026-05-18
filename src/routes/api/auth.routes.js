@@ -6,6 +6,7 @@ const auth_middleware_1 = require("../../middlewares/auth.middleware");
 const express_1 = require("express");
 const authRouter = (0, express_1.Router)();
 authRouter.post("/register", (0, rate_limit_middleware_1.createRateLimiter)({ limit: 10, windowMs: 60_000 }), auth_api_controller_1.register);
+authRouter.post("/verify-registration", (0, rate_limit_middleware_1.createRateLimiter)({ limit: 10, windowMs: 60_000 }), auth_api_controller_1.verifyRegistration);
 authRouter.post("/login", (0, rate_limit_middleware_1.createRateLimiter)({ limit: 10, windowMs: 60_000 }), auth_api_controller_1.login);
 authRouter.patch("/me/location", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), auth_api_controller_1.updateMyLocation);
 authRouter.patch("/me/profile", (0, auth_middleware_1.validateRoleAuth)(["user", "admin"]), auth_api_controller_1.updateMyProfile);

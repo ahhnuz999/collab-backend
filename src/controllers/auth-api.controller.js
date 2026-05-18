@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateMyProfile = exports.updateMyLocation = exports.resetPassword = exports.register = exports.login = exports.forgotPassword = void 0;
+exports.updateMyProfile = exports.updateMyLocation = exports.resetPassword = exports.verifyRegistration = exports.register = exports.login = exports.forgotPassword = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const models_1 = require("../db/models");
 const ApiError_1 = __importDefault(require("../utils/api/ApiError"));
@@ -14,10 +14,14 @@ const jwtTokens_1 = require("../utils/tokens/jwtTokens");
 const email_1 = require("../utils/services/email");
 const zod_1 = require("zod");
 /** Accept string or number from JSON clients; keep digits only */
-const phoneInput = zod_1.z.preprocess((v) => (v == null ? "" : String(v).replace(/\D/g, "").trim()), zod_1.z.string().min(7, "Phone number must be at least 7 digits"));
+const phoneInput = zod_1.z.preprocess((v) => (v == null ? "" : String(v).replace(/\D/g, "").trim()), zod_1.z.string().regex(/^\d{10}$/, "Phone number must be exactly 10 digits"));
 const passwordInput = zod_1.z.preprocess((v) => (v == null ? "" : String(v).trim()), zod_1.z.string().min(8, "Password must be at least 8 characters"));
+const fullNameInput = zod_1.z
+    .string()
+    .trim()
+    .refine((value) => value.split(/\s+/).filter(Boolean).length >= 2, "Full name must include at least first and last name");
 const registerSchema = zod_1.z.object({
-    name: zod_1.z.string().min(2),
+    name: fullNameInput,
     phoneNumber: phoneInput,
     email: zod_1.z.string().email(),
     password: passwordInput,
@@ -46,12 +50,16 @@ const resetPasswordSchema = zod_1.z.object({
     otpToken: zod_1.z.string().min(1),
     password: passwordInput,
 });
+const verifyRegistrationSchema = zod_1.z.object({
+    userId: zod_1.z.string().min(1),
+    otpToken: zod_1.z.string().min(1),
+});
 const locationSchema = zod_1.z.object({
     latitude: zod_1.z.coerce.string().min(1),
     longitude: zod_1.z.coerce.string().min(1),
 });
 const profileSchema = zod_1.z.object({
-    name: zod_1.z.string().min(2).optional(),
+    name: fullNameInput.optional(),
     email: zod_1.z.string().email().optional(),
     phoneNumber: phoneInput.optional(),
     primaryAddress: zod_1.z.string().min(3).optional(),
@@ -100,23 +108,58 @@ const register = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         $or: [{ email: payload.email }, { phoneNumber: Number(payload.phoneNumber) }],
     }).lean());
     if (existingUser) {
-        throw new ApiError_1.default(409, "A user with that email or phone number already exists");
+        if (existingUser.email === payload.email) {
+            throw new ApiError_1.default(409, "A user with that email already exists");
+        }
+        throw new ApiError_1.default(409, "A user with that phone number already exists");
     }
+    const otpToken = await (0, email_1.sendOTP)(payload.email);
     const password = await bcryptjs_1.default.hash(payload.password, 10);
     const user = (await models_1.UserModel.create({
         ...payload,
         phoneNumber: Number(payload.phoneNumber),
         password,
         role: payload.role || "user",
-        isVerified: true,
+        isVerified: false,
+        verificationToken: otpToken,
+        tokenExpiry: new Date(Date.now() + 10 * 60 * 1000),
     }));
+    return res.status(201).json(new ApiResponse_1.default(201, "Registration OTP sent successfully", {
+        userId: user.id,
+        email: user.email,
+    }));
+});
+exports.register = register;
+/**
+ * Verifies a newly registered user before issuing a login token.
+ */
+const verifyRegistration = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const payload = verifyRegistrationSchema.parse(req.body);
+    const user = (await models_1.UserModel.findOne({ id: payload.userId }));
+    if (!user) {
+        throw new ApiError_1.default(404, "User not found");
+    }
+    if (!user.verificationToken || !user.tokenExpiry) {
+        throw new ApiError_1.default(400, "Registration OTP not found");
+    }
+    const tokenExpiry = new Date(user.tokenExpiry);
+    if (Date.now() > tokenExpiry.getTime()) {
+        throw new ApiError_1.default(400, "Verification token expired");
+    }
+    if (payload.otpToken !== user.verificationToken) {
+        throw new ApiError_1.default(400, "Invalid OTP");
+    }
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.tokenExpiry = undefined;
+    await user.save();
     const token = (0, jwtTokens_1.generateJWT)(user.toObject());
-    return res.status(201).json(new ApiResponse_1.default(201, "User registered successfully", {
+    return res.status(200).json(new ApiResponse_1.default(200, "User verified successfully", {
         token,
         user: toSafeUser(user.toObject()),
     }));
 });
-exports.register = register;
+exports.verifyRegistration = verifyRegistration;
 /**
  * Authenticates a user and returns a JWT for mobile clients.
  */
@@ -126,6 +169,9 @@ const login = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         phoneNumber: Number(payload.phoneNumber),
     }));
     if (user) {
+        if (!user.isVerified) {
+            throw new ApiError_1.default(403, "Please verify your email OTP before signing in");
+        }
         const isPasswordValid = await bcryptjs_1.default.compare(payload.password, user.password);
         if (isPasswordValid) {
             const token = (0, jwtTokens_1.generateJWT)(user.toObject());
