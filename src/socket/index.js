@@ -67,6 +67,14 @@ const mountSendLocationEvent = (socket) => {
                 location: locationString,
                 timestamp: new Date().toISOString(),
             });
+            socket
+                .to(constants_1.SocketRoom.EMERGENCY(emergencyResponseId))
+                .emit(constants_1.SocketEventEnums.PROVIDER_LOCATION_UPDATED, {
+                emergencyResponseId,
+                providerId: socket.user?.id,
+                location: locationString,
+                timestamp: new Date().toISOString(),
+            });
             console.log(`[SOCKET] Location sent from ${socket.user?.id}`);
         }
         catch (error) {
@@ -247,6 +255,9 @@ const authenticateUser = async (socket) => {
     if (userEntity) {
         socket.user = userEntity;
         socket.join(constants_1.SocketRoom.USER(userEntity.id));
+        if (userEntity.role === "admin") {
+            socket.join(constants_1.SocketRoom.ADMINS);
+        }
         console.log("User connected ðŸ—¼. userId: ", userEntity.id.toString());
     }
     else {
@@ -266,6 +277,7 @@ const authenticateUser = async (socket) => {
         }
         socket.user = serviceProviderEntity;
         socket.join(constants_1.SocketRoom.PROVIDER(serviceProviderEntity.id));
+        socket.join(constants_1.SocketRoom.PROVIDERS);
         console.log("Service Provider connected ðŸ—¼. providerId: ", serviceProviderEntity.id.toString());
     }
     socket.emit(constants_1.SocketEventEnums.CONNECTION_EVENT);
@@ -285,6 +297,14 @@ const handleSocketConnection = async (socket) => {
                 .to(constants_1.SocketRoom.EMERGENCY(emergencyResponseId))
                 .emit(constants_1.SocketEventEnums.LOCATION_UPDATE, {
                 userId: socket.user?.id,
+                location,
+                timestamp: new Date().toISOString(),
+            });
+            socket
+                .to(constants_1.SocketRoom.EMERGENCY(emergencyResponseId))
+                .emit(constants_1.SocketEventEnums.PROVIDER_LOCATION_UPDATED, {
+                emergencyResponseId,
+                providerId: socket.user?.id,
                 location,
                 timestamp: new Date().toISOString(),
             });

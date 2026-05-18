@@ -12,6 +12,7 @@ const schema_1 = require("../db/schema");
 const ApiResponse_1 = __importDefault(require("../utils/api/ApiResponse"));
 const user_history_service_1 = require("../services/user-history.service");
 const models_1 = require("../db/models");
+const constants_1 = require("../constants");
 const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { emergencyType, emergencyDescription, userLocation, locationSource } = req.body;
     const loggedInUser = req.user;
@@ -80,6 +81,14 @@ const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         locationName: newEmergencyRequest[0].locationName,
         requestTime: new Date(),
     }, "Emergency request submitted");
+    // Broadcast the saved request so provider/admin queues update without polling.
+    const io = req.app.get("io");
+    io.to(constants_1.SocketRoom.ADMINS).emit(constants_1.SocketEventEnums.NEW_REQUEST, {
+        emergencyRequest: newEmergencyRequest[0],
+    });
+    io.to(constants_1.SocketRoom.PROVIDERS).emit(constants_1.SocketEventEnums.NEW_REQUEST, {
+        emergencyRequest: newEmergencyRequest[0],
+    });
     res.status(201).json(new ApiResponse_1.default(201, "Emergency request created", {
         emergencyRequest: newEmergencyRequest[0],
     }));
@@ -157,6 +166,16 @@ const updateEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         location: updatedEmergencyRequest[0].emergencyLocation,
         locationName: updatedEmergencyRequest[0].locationName,
     }, `Emergency request updated${status ? ` to ${status}` : ""}`);
+    // Keep all interested screens in sync after a request status/body change.
+    const statusPayload = {
+        emergencyRequest: updatedEmergencyRequest[0],
+        requestId: updatedEmergencyRequest[0].id,
+        userId: updatedEmergencyRequest[0].userId,
+        status: updatedEmergencyRequest[0].requestStatus,
+    };
+    req.app.get("io").to(constants_1.SocketRoom.USER(updatedEmergencyRequest[0].userId)).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, statusPayload);
+    req.app.get("io").to(constants_1.SocketRoom.ADMINS).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, statusPayload);
+    req.app.get("io").to(constants_1.SocketRoom.PROVIDERS).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, statusPayload);
     res
         .status(200)
         .json(new ApiResponse_1.default(200, "Emergency request updated", updatedEmergencyRequest));
@@ -260,6 +279,18 @@ const cancelEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
     if (responseEntry?.serviceProviderId) {
         await models_1.ServiceProviderModel.updateOne({ id: responseEntry.serviceProviderId }, { serviceStatus: "available" });
     }
+    req.app.get("io").to(constants_1.SocketRoom.ADMINS).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, {
+        emergencyRequest: updatedEmergencyRequest[0],
+        requestId: updatedEmergencyRequest[0].id,
+        userId: updatedEmergencyRequest[0].userId,
+        status: "cancelled",
+    });
+    req.app.get("io").to(constants_1.SocketRoom.PROVIDERS).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, {
+        emergencyRequest: updatedEmergencyRequest[0],
+        requestId: updatedEmergencyRequest[0].id,
+        userId: updatedEmergencyRequest[0].userId,
+        status: "cancelled",
+    });
     return res
         .status(200)
         .json(new ApiResponse_1.default(200, "Emergency request cancelled", updatedEmergencyRequest[0]));

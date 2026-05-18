@@ -15,6 +15,11 @@ var SocketEventEnums;
     SocketEventEnums["EMERGENCY_RESPONSE_CREATED"] = "emergencyResponseCreated";
     SocketEventEnums["NOTIFICATION_CREATED"] = "notificationCreated";
     SocketEventEnums["EMERGENCY_RESPONSE_STATUS_UPDATED"] = "emergencyResponseStatusUpdated";
+    SocketEventEnums["NEW_REQUEST"] = "new_request";
+    SocketEventEnums["REQUEST_STATUS_UPDATED"] = "request_status_updated";
+    SocketEventEnums["REQUEST_ACCEPTED"] = "request_accepted";
+    SocketEventEnums["REQUEST_DECLINED"] = "request_declined";
+    SocketEventEnums["PROVIDER_LOCATION_UPDATED"] = "provider_location_updated";
     SocketEventEnums["UPDATE_LOCATION"] = "updateLocation";
     SocketEventEnums["UPDATE_USER_LOCATION"] = "updateUserLocation";
     SocketEventEnums["SEND_LOCATION"] = "sendLocation";
@@ -33,4 +38,6 @@ exports.SocketRoom = {
     USER: (id) => `user:${id}`,
     PROVIDER: (id) => `provider:${id}`,
     EMERGENCY: (id) => `emergency:${id}`,
+    ADMINS: "admins",
+    PROVIDERS: "providers",
 };

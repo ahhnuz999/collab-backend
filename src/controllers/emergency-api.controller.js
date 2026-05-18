@@ -130,13 +130,16 @@ async function notifyRequesterOfAdminStatus(req, emergency, status) {
     }
     const serviceName = getServiceDisplayName(emergency.serviceType);
     const isCompleted = status === "completed";
+    const isDeclined = status === "rejected";
     const notification = await (0, notification_service_1.deliverNotification)({
         userId: emergency.userId,
-        title: isCompleted ? "Request completed" : "Request accepted",
-        message: isCompleted
+        title: isDeclined ? "Request Declined" : isCompleted ? "Request completed" : "Emergency Service Accepted",
+        message: isDeclined
+            ? "Your emergency request was declined. Please try another provider."
+            : isCompleted
             ? `Your ${serviceName} request has been completed by the response team.`
-            : `Your ${serviceName} request has been accepted by the response team.`,
-        type: isCompleted ? "emergency_request_completed" : "emergency_request_accepted",
+            : "Your provider has accepted your request and is on the way.",
+        type: isDeclined ? "emergency_request_declined" : isCompleted ? "emergency_request_completed" : "emergency_request_accepted",
         source: "admin",
         priority: "high",
         phoneNumber: String(requester.phoneNumber || ""),
@@ -150,6 +153,21 @@ async function notifyRequesterOfAdminStatus(req, emergency, status) {
     });
     getSocket(req).to(constants_1.SocketRoom.USER(emergency.userId)).emit(constants_1.SocketEventEnums.NOTIFICATION_CREATED, notification);
     return notification;
+}
+function emitRequestLifecycle(req, event, emergency, extra = {}) {
+    const payload = {
+        requestId: emergency.id,
+        userId: emergency.userId,
+        status: emergency.requestStatus,
+        emergencyRequest: serializeEmergency(emergency),
+        ...extra,
+    };
+    getSocket(req).to(constants_1.SocketRoom.USER(emergency.userId)).emit(event, payload);
+    getSocket(req).to(constants_1.SocketRoom.ADMINS).emit(event, payload);
+    getSocket(req).to(constants_1.SocketRoom.PROVIDERS).emit(event, payload);
+    getSocket(req).to(constants_1.SocketRoom.USER(emergency.userId)).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, payload);
+    getSocket(req).to(constants_1.SocketRoom.ADMINS).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, payload);
+    getSocket(req).to(constants_1.SocketRoom.PROVIDERS).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, payload);
 }
 async function serializeAdminEmergency(request, response) {
     const [requester, responder] = (await Promise.all([
@@ -359,6 +377,12 @@ const updateEmergencyStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) 
         emergencyId: emergency.id,
         status: payload.status,
     });
+    req.app.get("io").to(constants_1.SocketRoom.ADMINS).emit(constants_1.SocketEventEnums.NEW_REQUEST, {
+        emergencyRequest: serializeEmergency(emergency.toObject()),
+    });
+    req.app.get("io").to(constants_1.SocketRoom.PROVIDERS).emit(constants_1.SocketEventEnums.NEW_REQUEST, {
+        emergencyRequest: serializeEmergency(emergency.toObject()),
+    });
     if (req.user.role === "admin" && previousStatus !== emergency.requestStatus) {
         if (payload.status === "accepted") {
             await notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
@@ -366,6 +390,11 @@ const updateEmergencyStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) 
         if (payload.status === "resolved") {
             await notifyRequesterOfAdminStatus(req, emergency.toObject(), "completed");
         }
+    }
+    if (previousStatus !== emergency.requestStatus) {
+        emitRequestLifecycle(req, constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, emergency.toObject(), {
+            apiStatus: payload.status,
+        });
     }
     const serialized = serializeEmergency(emergency.toObject(), responseEntry?.toObject?.() || responseEntry || undefined);
     return res
@@ -531,6 +560,10 @@ const approveEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res
     if (previousStatus !== emergency.requestStatus) {
         await notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
     }
+    emitRequestLifecycle(req, constants_1.SocketEventEnums.REQUEST_ACCEPTED, emergency.toObject(), {
+        assignedResponder: req.user.id,
+        response: responseEntry,
+    });
     return res
         .status(200)
         .json(new ApiResponse_1.default(200, "Emergency request approved", await serializeAdminEmergency(emergency.toObject(), responseEntry || undefined)));
@@ -566,6 +599,11 @@ const rejectEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
     getSocket(req).to(constants_1.SocketRoom.USER(emergency.userId)).emit(constants_1.SocketEventEnums.RECEIVE_ALERT, {
         emergencyId: emergency.id,
         status: "rejected",
+    });
+    await notifyRequesterOfAdminStatus(req, emergency.toObject(), "rejected");
+    emitRequestLifecycle(req, constants_1.SocketEventEnums.REQUEST_DECLINED, emergency.toObject(), {
+        reason: payload.reason || "Emergency rejected by admin",
+        response: responseEntry,
     });
     return res
         .status(200)
@@ -648,6 +686,10 @@ const assignResponder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (!["approved", "assigned", "in_progress"].includes(previousStatus)) {
         await notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
     }
+    emitRequestLifecycle(req, constants_1.SocketEventEnums.REQUEST_ACCEPTED, emergency.toObject(), {
+        assignedResponder: responder.id,
+        response: responseEntry,
+    });
     return res.status(200).json(new ApiResponse_1.default(200, "Responder assigned successfully", {
         emergency: serializeEmergency(emergency.toObject(), responseEntry || undefined),
         responder: {
