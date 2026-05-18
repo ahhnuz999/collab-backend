@@ -71,7 +71,7 @@ const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         console.log("Error creating emergency request");
         throw new ApiError_1.default(500, "Error creating emergency request");
     }
-    await (0, user_history_service_1.recordUserRequestHistory)({
+    const historyItem = await (0, user_history_service_1.recordUserRequestHistory)({
         id: newEmergencyRequest[0].id,
         userId: newEmergencyRequest[0].userId,
         serviceType: newEmergencyRequest[0].emergencyType,
@@ -81,12 +81,16 @@ const createEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         locationName: newEmergencyRequest[0].locationName,
         requestTime: new Date(),
     }, "Emergency request submitted");
+    await (0, user_history_service_1.emitUserRecentRequestsUpdated)(req, newEmergencyRequest[0].userId, historyItem);
     // Broadcast the saved request so provider/admin queues update without polling.
     const io = req.app.get("io");
     io.to(constants_1.SocketRoom.ADMINS).emit(constants_1.SocketEventEnums.NEW_REQUEST, {
         emergencyRequest: newEmergencyRequest[0],
     });
     io.to(constants_1.SocketRoom.PROVIDERS).emit(constants_1.SocketEventEnums.NEW_REQUEST, {
+        emergencyRequest: newEmergencyRequest[0],
+    });
+    io.to(constants_1.SocketRoom.USER(newEmergencyRequest[0].userId)).emit(constants_1.SocketEventEnums.NEW_REQUEST, {
         emergencyRequest: newEmergencyRequest[0],
     });
     res.status(201).json(new ApiResponse_1.default(201, "Emergency request created", {
@@ -157,7 +161,7 @@ const updateEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         console.log("Error updating emergency request");
         throw new ApiError_1.default(500, "Error updating emergency request");
     }
-    await (0, user_history_service_1.recordUserRequestHistory)({
+    const historyItem = await (0, user_history_service_1.recordUserRequestHistory)({
         id: updatedEmergencyRequest[0].id,
         userId: updatedEmergencyRequest[0].userId,
         serviceType: updatedEmergencyRequest[0].emergencyType,
@@ -166,6 +170,7 @@ const updateEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         location: updatedEmergencyRequest[0].emergencyLocation,
         locationName: updatedEmergencyRequest[0].locationName,
     }, `Emergency request updated${status ? ` to ${status}` : ""}`);
+    await (0, user_history_service_1.emitUserRecentRequestsUpdated)(req, updatedEmergencyRequest[0].userId, historyItem);
     // Keep all interested screens in sync after a request status/body change.
     const statusPayload = {
         emergencyRequest: updatedEmergencyRequest[0],
@@ -271,7 +276,8 @@ const cancelEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         createdAt: schema_1.emergencyRequest.createdAt,
         updatedAt: schema_1.emergencyRequest.updatedAt,
     });
-    await (0, user_history_service_1.recordUserRequestHistory)(updatedEmergencyRequest[0], "Emergency request cancelled by user");
+    const historyItem = await (0, user_history_service_1.recordUserRequestHistory)(updatedEmergencyRequest[0], "Emergency request cancelled by user");
+    await (0, user_history_service_1.emitUserRecentRequestsUpdated)(req, updatedEmergencyRequest[0].userId, historyItem);
     const responseEntry = await models_1.EmergencyResponseModel.findOneAndUpdate({ emergencyRequestId: id }, {
         statusUpdate: "rejected",
         updateDescription: "Emergency request cancelled by user",
@@ -286,6 +292,12 @@ const cancelEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         status: "cancelled",
     });
     req.app.get("io").to(constants_1.SocketRoom.PROVIDERS).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, {
+        emergencyRequest: updatedEmergencyRequest[0],
+        requestId: updatedEmergencyRequest[0].id,
+        userId: updatedEmergencyRequest[0].userId,
+        status: "cancelled",
+    });
+    req.app.get("io").to(constants_1.SocketRoom.USER(updatedEmergencyRequest[0].userId)).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, {
         emergencyRequest: updatedEmergencyRequest[0],
         requestId: updatedEmergencyRequest[0].id,
         userId: updatedEmergencyRequest[0].userId,

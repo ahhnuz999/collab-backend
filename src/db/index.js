@@ -200,7 +200,6 @@ const db = {
         emergencyResponse: buildQuery(schema_1.emergencyResponse),
         emergencyContact: buildQuery(schema_1.emergencyContact),
         feedback: buildQuery(schema_1.feedback),
-        notifications: buildQuery(schema_1.notifications),
     },
     insert: (table) => new InsertBuilder(table),
     update: (table) => new UpdateBuilder(table),

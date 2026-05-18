@@ -21,4 +21,3 @@ __exportStar(require("./emergencyResponse"), exports);
 __exportStar(require("./organization"), exports);
 __exportStar(require("./emergencyContacts"), exports);
 __exportStar(require("./feedback"), exports);
-__exportStar(require("./notification"), exports);

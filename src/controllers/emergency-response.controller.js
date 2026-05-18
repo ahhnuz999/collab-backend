@@ -13,7 +13,6 @@ const ApiResponse_1 = __importDefault(require("../utils/api/ApiResponse"));
 const galli_maps_1 = require("../utils/maps/galli-maps");
 const socket_1 = require("../socket");
 const constants_1 = require("../constants");
-const notification_controller_1 = require("./notification.controller");
 // Helper function to generate a nearby location
 const generateNearbyLocation = (baseLocation) => {
     const latOffset = (Math.random() - 0.5) * 0.03;
@@ -128,30 +127,9 @@ const createEmergencyResponse = (0, asyncHandler_1.asyncHandler)(async (req, res
         })
             .where((0, query_1.eq)(schema_1.serviceProvider.id, serviceProviderId)),
     ]);
-    const locationName = await (0, galli_maps_1.reverseGeoCode)(emergencyRequestDetails.location.longitude, emergencyRequestDetails.location.latitude);
-    const providerNotification = await (0, notification_controller_1.createNotification)({
-        serviceProviderId: assignedServiceProvider.id,
-        userId: loggedInUser.id,
-        message: `New emergency request assigned to you. Type: ${emergencyRequestType}`,
-        type: "emergency",
-        priority: "high",
-        deliveryStatus: "unread",
-        source: "system",
-        metadata: {
-            emergencyType: emergencyRequestType,
-            location: locationName,
-            distance: optimalPath?.distance || "Calculating...",
-            userInfo: {
-                name: loggedInUser.name,
-                contact: loggedInUser.phoneNumber,
-            },
-        },
-    });
     (0, socket_1.emitSocketEvent)(req, constants_1.SocketRoom.PROVIDER(assignedServiceProvider.id), constants_1.SocketEventEnums.PROVIDER_STATUS_UPDATED, {
         status: assignedServiceProvider.serviceStatus,
     });
-    // Create notification for the user
-    (0, socket_1.emitSocketEvent)(req, constants_1.SocketRoom.PROVIDER(assignedServiceProvider.id), constants_1.SocketEventEnums.NOTIFICATION_CREATED, providerNotification);
     (0, socket_1.emitSocketEvent)(req, constants_1.SocketRoom.USER(loggedInUser.id), constants_1.SocketEventEnums.EMERGENCY_RESPONSE_CREATED, {
         emergencyResponse: newEmergencyResponse[0],
         optimalPath,

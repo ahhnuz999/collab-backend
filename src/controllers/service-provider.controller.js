@@ -15,7 +15,6 @@ const jwtTokens_1 = require("../utils/tokens/jwtTokens");
 const socket_1 = require("../socket");
 const constants_1 = require("../constants");
 const maps_1 = require("../utils/maps");
-const notification_controller_1 = require("./notification.controller");
 const email_1 = require("../utils/services/email");
 const distance_1 = require("../utils/distance");
 const registerServiceProvider = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
@@ -436,20 +435,10 @@ const updateServiceProviderStatus = (0, asyncHandler_1.asyncHandler)(async (req,
                         serviceStatus: "assigned",
                     })
                         .where((0, query_1.eq)(schema_1.serviceProvider.id, nextBestProvider.id));
-                    // Create notification for the new provider
-                    const newNotification = await (0, notification_controller_1.createNotification)({
-                        serviceProviderId: nextBestProvider.id,
-                        userId: emergencyRequestDetails.userId,
-                        message: "New emergency request assigned to you",
-                        type: "emergency",
-                        deliveryStatus: "unread",
-                        source: "system",
-                    });
                     // Emit socket events
                     (0, socket_1.emitSocketEvent)(req, constants_1.SocketRoom.PROVIDER(nextBestProvider.id), constants_1.SocketEventEnums.EMERGENCY_RESPONSE_CREATED, {
                         emergencyResponse: updatedResponse,
                     });
-                    (0, socket_1.emitSocketEvent)(req, constants_1.SocketRoom.PROVIDER(nextBestProvider.id), constants_1.SocketEventEnums.NOTIFICATION_CREATED, newNotification);
                     // Notify the user about the reassignment
                     (0, socket_1.emitSocketEvent)(req, constants_1.SocketRoom.USER(emergencyRequestDetails.userId), constants_1.SocketEventEnums.EMERGENCY_RESPONSE_CREATED, {
                         emergencyResponse: updatedResponse,

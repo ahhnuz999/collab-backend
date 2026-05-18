@@ -14,7 +14,6 @@ const updateProfileSchema = zod_1.z.object({
     phoneNumber: zod_1.z.string().min(7).optional(),
     email: zod_1.z.string().email().optional(),
     primaryAddress: zod_1.z.string().min(3).optional(),
-    pushToken: zod_1.z.string().optional(),
     currentLocation: zod_1.z
         .object({
         latitude: zod_1.z.string(),

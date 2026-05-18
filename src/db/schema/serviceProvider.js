@@ -29,7 +29,6 @@ exports.serviceProvider = (0, helpers_1.createTable)("serviceProvider", models_1
     "tokenExpiry",
     "resetPasswordToken",
     "resetPasswordTokenExpiry",
-    "pushToken",
     "createdAt",
     "updatedAt",
 ]);
@@ -65,7 +64,6 @@ exports.serviceProviderSchema = zod_1.z.object({
     tokenExpiry: zod_1.z.coerce.date().nullish(),
     resetPasswordToken: zod_1.z.string().nullish(),
     resetPasswordTokenExpiry: zod_1.z.coerce.date().nullish(),
-    pushToken: zod_1.z.string().nullish(),
     createdAt: zod_1.z.coerce.date().optional(),
     updatedAt: zod_1.z.coerce.date().optional(),
 });

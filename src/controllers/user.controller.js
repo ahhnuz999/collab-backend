@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.changePassword = exports.resetPassword = exports.forgotPassword = exports.getProfile = exports.verifyUser = exports.getUser = exports.updateUser = exports.logoutUser = exports.loginUser = exports.registerUser = exports.updatePushToken = void 0;
+exports.changePassword = exports.resetPassword = exports.forgotPassword = exports.getProfile = exports.verifyUser = exports.getUser = exports.updateUser = exports.logoutUser = exports.loginUser = exports.registerUser = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const query_1 = require("../db/query");
 const db_1 = __importDefault(require("../db"));
@@ -452,21 +452,3 @@ const changePassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     }));
 });
 exports.changePassword = changePassword;
-exports.updatePushToken = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { pushToken } = req.body;
-    const userId = req.user?.id;
-    if (!userId) {
-        throw new ApiError_1.default(401, "Unauthorized");
-    }
-    const updatedUser = await db_1.default
-        .update(user_1.user)
-        .set({ pushToken })
-        .where((0, query_1.eq)(user_1.user.id, userId))
-        .returning();
-    if (!updatedUser) {
-        throw new ApiError_1.default(404, "User not found");
-    }
-    return res
-        .status(200)
-        .json(new ApiResponse_1.default(200, "Push token updated successfully", updatedUser[0]));
-});

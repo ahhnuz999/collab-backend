@@ -188,7 +188,6 @@ Reset-password notes:
 | POST | `/api/v1/user/reset-password` | No | Reset password with `otpToken`, `userId`, and `password` |
 | POST | `/api/v1/user/change-password` | user | Change password while logged in |
 | GET | `/api/v1/user/profile` | user | Get current user profile |
-| POST | `/api/v1/user/update-push-token` | user | Update push token |
 | GET | `/api/v1/user/:userId` | No | Get user by id |
 
 Legacy user notes:
@@ -284,14 +283,6 @@ Optional query params:
 | GET | `/api/v1/emergency-contacts/:id` | No | Get contact by id |
 | PUT | `/api/v1/emergency-contacts/:id` | user | Update contact |
 | DELETE | `/api/v1/emergency-contacts/:id` | user, admin | Delete contact |
-
-### Notifications (`/api/v1/notifications`)
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/v1/notifications` | user | List notifications |
-| PUT | `/api/v1/notifications/:id/read` | user | Mark notification as read |
-| POST | `/api/v1/notifications/token` | user | Register notification token |
 
 ## Error Format
 

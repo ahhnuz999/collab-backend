@@ -1,8 +1,50 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resolveLocationName = exports.getUserRequestHistory = exports.recordUserRequestHistory = void 0;
+exports.emitUserRecentRequestsUpdated = exports.resolveLocationName = exports.getUserRequestHistory = exports.recordUserRequestHistory = void 0;
 const models_1 = require("../db/models");
 const axios_1 = require("axios");
+const constants_1 = require("../constants");
+
+const serviceTypeMeta = {
+    ambulance: {
+        icon: "ambulance",
+        iconName: "Ambulance",
+        iconColor: "#DC2626",
+    },
+    police: {
+        icon: "shield",
+        iconName: "Police",
+        iconColor: "#2563EB",
+    },
+    rescue_team: {
+        icon: "life-buoy",
+        iconName: "Rescue Team",
+        iconColor: "#059669",
+    },
+    fire_truck: {
+        icon: "flame",
+        iconName: "Fire Truck",
+        iconColor: "#EA580C",
+    },
+};
+
+function decorateRequestHistoryItem(item) {
+    if (!item) {
+        return item;
+    }
+    const serviceType = item.serviceType || item.emergencyType || "emergency";
+    const meta = serviceTypeMeta[serviceType] || {
+        icon: "siren",
+        iconName: "Emergency",
+        iconColor: "#7C3AED",
+    };
+    return {
+        ...item,
+        serviceIcon: meta.icon,
+        serviceIconName: meta.iconName,
+        serviceIconColor: meta.iconColor,
+    };
+}
 
 function buildHistoryEvent(status, message) {
     return {
@@ -33,22 +75,37 @@ async function recordUserRequestHistory(request, message = "Emergency request cr
         locationName: request.locationName || "",
         lastEventAt: new Date(),
     };
-    return models_1.UserRequestHistoryModel.findOneAndUpdate({ emergencyRequestId: request.id }, {
+    const historyItem = await models_1.UserRequestHistoryModel.findOneAndUpdate({ emergencyRequestId: request.id }, {
         $set: update,
         $push: {
             events: buildHistoryEvent(status, message),
         },
     }, { new: true, upsert: true }).lean();
+    return decorateRequestHistoryItem(historyItem);
 }
 exports.recordUserRequestHistory = recordUserRequestHistory;
 
 async function getUserRequestHistory(userId, limit = 10) {
-    return models_1.UserRequestHistoryModel.find({ userId })
+    const items = await models_1.UserRequestHistoryModel.find({ userId })
         .sort({ requestTime: -1, createdAt: -1 })
         .limit(limit)
         .lean();
+    return items.map(decorateRequestHistoryItem);
 }
 exports.getUserRequestHistory = getUserRequestHistory;
+
+async function emitUserRecentRequestsUpdated(req, userId, changedRequest) {
+    if (!req?.app || !userId) {
+        return;
+    }
+    const recentRequests = await getUserRequestHistory(userId, 10);
+    req.app.get("io").to(constants_1.SocketRoom.USER(userId)).emit(constants_1.SocketEventEnums.RECENT_REQUESTS_UPDATED, {
+        userId,
+        changedRequest: decorateRequestHistoryItem(changedRequest),
+        recentRequests,
+    });
+}
+exports.emitUserRecentRequestsUpdated = emitUserRecentRequestsUpdated;
 
 function pickLocationName(value) {
     if (!value) {

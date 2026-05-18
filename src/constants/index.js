@@ -13,7 +13,7 @@ var SocketEventEnums;
     SocketEventEnums["JOIN_EMERGENCY_ROOM"] = "joinEmergencyRoom";
     SocketEventEnums["LEAVE_EMERGENCY_ROOM"] = "leaveEmergencyRoom";
     SocketEventEnums["EMERGENCY_RESPONSE_CREATED"] = "emergencyResponseCreated";
-    SocketEventEnums["NOTIFICATION_CREATED"] = "notificationCreated";
+    SocketEventEnums["RECENT_REQUESTS_UPDATED"] = "recent_requests_updated";
     SocketEventEnums["EMERGENCY_RESPONSE_STATUS_UPDATED"] = "emergencyResponseStatusUpdated";
     SocketEventEnums["NEW_REQUEST"] = "new_request";
     SocketEventEnums["REQUEST_STATUS_UPDATED"] = "request_status_updated";

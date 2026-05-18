@@ -14,7 +14,6 @@ const emergency_response_routes_1 = __importDefault(require("./emergency-respons
 const healthcheck_routes_1 = __importDefault(require("./healthcheck.routes"));
 const feedback_routes_1 = __importDefault(require("./feedback.routes"));
 const emergency_contacts_routes_1 = __importDefault(require("./emergency-contacts.routes"));
-const notification_routes_1 = __importDefault(require("./notification.routes"));
 const v1Router = (0, express_1.Router)();
 exports.v1Router = v1Router;
 // Health Check Router
@@ -27,4 +26,3 @@ v1Router.use("/maps", maps_routes_1.default);
 v1Router.use("/emergency-response", emergency_response_routes_1.default);
 v1Router.use("/feedback", feedback_routes_1.default);
 v1Router.use("/emergency-contacts", emergency_contacts_routes_1.default);
-v1Router.use("/notifications", notification_routes_1.default);

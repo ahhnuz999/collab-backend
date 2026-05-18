@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.appModels = exports.ChatConversationModel = exports.NotificationModel = exports.FeedbackModel = exports.EmergencyContactModel = exports.EmergencyResponseModel = exports.UserRequestHistoryModel = exports.EmergencyRequestModel = exports.ServiceProviderModel = exports.OrganizationModel = exports.UserModel = void 0;
+exports.appModels = exports.ChatConversationModel = exports.FeedbackModel = exports.EmergencyContactModel = exports.EmergencyResponseModel = exports.UserRequestHistoryModel = exports.EmergencyRequestModel = exports.ServiceProviderModel = exports.OrganizationModel = exports.UserModel = void 0;
 const crypto_1 = require("crypto");
 const mongoose_1 = __importStar(require("mongoose"));
 const locationSchema = new mongoose_1.Schema({
@@ -84,7 +84,6 @@ exports.UserModel = mongoose_1.default.model("User", new mongoose_1.Schema(withB
     medicalInfo: { type: medicalInfoSchema, default: () => ({}) },
     resetPasswordToken: String,
     resetPasswordTokenExpiry: Date,
-    pushToken: String,
 }), baseOptions));
 exports.OrganizationModel = mongoose_1.default.model("Organization", new mongoose_1.Schema(withBaseFields({
     name: { type: String, required: true, unique: true },
@@ -130,7 +129,6 @@ exports.ServiceProviderModel = mongoose_1.default.model("ServiceProvider", new m
     tokenExpiry: Date,
     resetPasswordToken: String,
     resetPasswordTokenExpiry: Date,
-    pushToken: String,
 }), baseOptions));
 exports.EmergencyRequestModel = mongoose_1.default.model("EmergencyRequest", new mongoose_1.Schema(withBaseFields({
     userId: { type: String, required: true, index: true },
@@ -205,22 +203,6 @@ exports.FeedbackModel = mongoose_1.default.model("Feedback", new mongoose_1.Sche
     message: String,
     serviceRatings: Number,
 }), baseOptions));
-exports.NotificationModel = mongoose_1.default.model("Notification", new mongoose_1.Schema(withBaseFields({
-    userId: { type: String, index: true },
-    serviceProviderId: { type: String, index: true },
-    message: { type: String, required: true },
-    type: { type: String, required: true },
-    priority: {
-        type: String,
-        enum: ["low", "medium", "high"],
-        default: "low",
-    },
-    source: { type: String, required: true },
-    metadata: mongoose_1.Schema.Types.Mixed,
-    deliveryStatus: { type: String, default: "pending" },
-    isRead: { type: Boolean, default: false },
-    doNotDisturb: { type: Boolean, default: false },
-}), baseOptions));
 const chatMessageSchema = new mongoose_1.Schema({
     role: { type: String, enum: ["user", "assistant"], required: true },
     text: { type: String, required: true },
@@ -239,7 +221,6 @@ exports.appModels = [
     exports.UserRequestHistoryModel,
     exports.EmergencyResponseModel,
     exports.FeedbackModel,
-    exports.NotificationModel,
     exports.ChatConversationModel,
     exports.OrganizationModel,
     exports.ServiceProviderModel,

@@ -29,7 +29,6 @@ exports.user = (0, helpers_1.createTable)("user", models_1.UserModel, [
     "resetPasswordTokenExpiry",
     "createdAt",
     "updatedAt",
-    "pushToken",
 ]);
 exports.usersSchema = zod_1.z.object({
     id: zod_1.z.string(),
@@ -63,7 +62,6 @@ exports.usersSchema = zod_1.z.object({
     resetPasswordTokenExpiry: zod_1.z.coerce.date().nullish(),
     createdAt: zod_1.z.coerce.date().optional(),
     updatedAt: zod_1.z.coerce.date().optional(),
-    pushToken: zod_1.z.string().nullish(),
 });
 exports.newUserSchema = exports.usersSchema
     .pick({

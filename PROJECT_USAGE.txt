@@ -1,0 +1,101 @@
+Project Usage Notes - collab-backend
+Generated from the collab-backend backend project only.
+
+Core runtime
+- Node.js: Runs the backend JavaScript server.
+- Express: Provides the REST API routes under /api and /api/v1.
+- HTTP server: Wraps Express so Socket.IO can share the same server.
+- CORS: Allows the frontend or mobile app to call this backend from approved hosts.
+- cookie-parser: Reads the token cookie for authenticated routes and sockets.
+- dotenv: Loads .env.sample and .env configuration values.
+
+Database and data models
+- MongoDB: Main database used for users, service providers, organizations, emergency requests, request history, responses, contacts, feedback, and chat conversations.
+- Mongoose: Defines MongoDB schemas/models and performs database reads/writes.
+- Local Drizzle-like helpers: The files in src/db and src/db/schema expose a table/query style API over Mongoose models so older controller code can keep using db.query, db.insert, db.update, and db.delete patterns.
+- UserRequestHistoryModel: Stores the user's recent request list and request timeline events. It now includes service icon metadata in responses so the app can show ambulance, police, rescue, or fire icons instead of a generic file icon.
+
+Authentication and security
+- JSON Web Tokens (jsonwebtoken): Creates and verifies login tokens for users, admins, and service providers.
+- bcryptjs: Hashes passwords and verifies password login attempts.
+- cookie auth and bearer auth: Authentication middleware accepts either the token cookie or Authorization: Bearer token.
+- rate limiting: Limits frequent API calls, especially SOS creation, to reduce accidental spam or abuse.
+- zod: Validates request bodies, query parameters, environment variables, and model-like payloads before logic runs.
+
+Realtime updates
+- Socket.IO: Used for fast live updates without polling. It handles connection authentication, room joining, emergency-room tracking, provider/user location updates, provider status updates, new requests, request accepted/declined/status updates, SOS alerts, and recent request list updates.
+- Socket rooms:
+  - user:<id> sends updates to one user.
+  - provider:<id> sends updates to one service provider.
+  - emergency:<id> shares live tracking inside one emergency response.
+  - admins and providers broadcast queue-level request updates.
+- recent_requests_updated: Socket event emitted to the user room whenever a request is created, approved, assigned, rejected, cancelled, completed, or otherwise updated. The payload includes changedRequest and recentRequests.
+
+Emergency request flow
+- Emergency request controllers: Create, update, cancel, delete, and list emergency requests.
+- Recent requests endpoint: /api/v1/emergency-request/recent returns the latest request history for the logged-in user.
+- Request history service: Records user-visible request events and returns decorated service icon metadata:
+  - ambulance -> ambulance icon, red color.
+  - police -> shield icon, blue color.
+  - rescue_team -> life-buoy icon, green color.
+  - fire_truck -> flame icon, orange color.
+- Admin emergency API: Lets responders/admins list active emergencies, approve/reject requests, assign responders, update status, and track request details.
+- Emergency response API: Creates and updates emergency responses, assigns service providers, emits live response/status events, and provides provider response history.
+
+Maps and routing
+- Galli Maps: Used for Kathmandu/Nepal-friendly autocomplete, reverse geocoding, and routing. It is useful here because it supports local routing needs such as Kathmandu Valley service movement.
+- Galli Maps optimal route: Used to get provider-to-user route details for emergency response.
+- Galli Maps autocomplete: Used to search places around the user's location.
+- OpenStreetMap Nominatim reverse geocoding: Used as a fallback-style location name resolver for request history when creating user request records.
+- haversine-distance / distance utilities: Used to compare provider distance from users and sort nearby responders.
+
+Users and service providers
+- User APIs: Register, login, profile, profile update, location update, password reset, emergency contacts, request history, and response lookup.
+- Service provider APIs: Register/login provider accounts, verify/reset password, update provider status, update location/profile, find nearby providers, and view provider responses.
+- Organization APIs: Manage service organizations and link service providers to an organization/service category.
+- Emergency contacts APIs: Store user emergency contacts and common contacts.
+- Feedback APIs: Store feedback for service providers after service interactions.
+
+AI chat
+- ChatConversationModel: Stores chat conversations and messages.
+- OpenRouter: Optional AI provider for the emergency-help chatbot.
+- Gemini: Optional AI provider for the emergency-help chatbot.
+- Chat controller: Keeps replies short and safety-focused, stores conversation history, and avoids claiming that the AI can dispatch services.
+
+Email and OTP
+- nodemailer: Sends email messages.
+- mailgen: Helps generate formatted email content.
+- Gmail SMTP config: Used for OTP and password reset emails when configured.
+- authenticator: Present as a dependency for OTP/token-related workflows.
+
+External services and dependencies
+- axios: Calls external APIs such as Galli Maps and reverse geocoding.
+- twilio: Present for SMS service integration, though notification push code has been removed.
+- @faker-js/faker: Used by seed/dev scripts to generate fake data.
+
+Removed notification system
+- The old notification route, notification controller, notification service, notification schema, push token endpoint, Expo push dependency, FCM env config, and notification socket event were removed.
+- The project now relies on Socket.IO lifecycle events for live in-app updates instead of storing/sending notification records.
+
+Important config files
+- .env.sample: Lists the environment variables needed to run the backend.
+- src/config/env.config.js: Validates environment variables and exposes envConfig.
+- src/index.js: Main server entrypoint; creates Express, HTTP, Socket.IO, connects MongoDB, and mounts routes.
+- src/socket/index.js: Socket.IO authentication and event handlers.
+- API_REFERENCE.md: API endpoint reference for modern /api and legacy /api/v1 routes.
+
+Main route groups
+- /api/auth: Modern auth.
+- /api/users: Modern user/profile/resources.
+- /api/contacts: Modern emergency contacts.
+- /api/chat: AI assistant chat.
+- /api/emergency: Modern emergency SOS/history/status.
+- /api/admin: Admin/responder emergency operations.
+- /api/v1/user: Legacy user routes.
+- /api/v1/service-provider: Legacy service provider routes.
+- /api/v1/organization: Organization routes.
+- /api/v1/emergency-request: Legacy emergency request routes including recent requests.
+- /api/v1/emergency-response: Emergency response routes.
+- /api/v1/maps: Galli Maps autocomplete and routing.
+- /api/v1/feedback: Feedback routes.
+- /api/v1/emergency-contacts: Legacy emergency contact routes.

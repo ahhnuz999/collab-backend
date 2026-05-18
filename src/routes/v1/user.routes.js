@@ -21,6 +21,5 @@ userRouter.route("/forgot-password").post(user_controller_1.forgotPassword);
 userRouter.route("/reset-password").post(user_controller_1.resetPassword);
 userRouter.route("/change-password").post(validateUser, user_controller_1.changePassword);
 userRouter.route("/profile").get(validateUser, user_controller_1.getProfile);
-userRouter.post("/update-push-token", validateUser, user_controller_1.updatePushToken);
 userRouter.route("/:userId").get(user_controller_1.getUser);
 exports.default = userRouter;

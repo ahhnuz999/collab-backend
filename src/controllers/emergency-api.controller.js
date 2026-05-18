@@ -7,7 +7,6 @@ exports.rejectEmergencyRequest = exports.approveEmergencyRequest = exports.track
 const env_config_1 = require("../config/env.config");
 const constants_1 = require("../constants");
 const models_1 = require("../db/models");
-const notification_service_1 = require("../services/notification.service");
 const user_history_service_1 = require("../services/user-history.service");
 const ApiError_1 = __importDefault(require("../utils/api/ApiError"));
 const ApiResponse_1 = __importDefault(require("../utils/api/ApiResponse"));
@@ -123,36 +122,21 @@ function getServiceDisplayName(serviceType) {
             return "emergency";
     }
 }
-async function notifyRequesterOfAdminStatus(req, emergency, status) {
-    const requester = await models_1.UserModel.findOne({ id: emergency.userId }).lean();
-    if (!requester) {
-        return null;
-    }
+function notifyRequesterOfAdminStatus(req, emergency, status) {
     const serviceName = getServiceDisplayName(emergency.serviceType);
     const isCompleted = status === "completed";
     const isDeclined = status === "rejected";
-    const notification = await (0, notification_service_1.deliverNotification)({
-        userId: emergency.userId,
-        title: isDeclined ? "Request Declined" : isCompleted ? "Request completed" : "Emergency Service Accepted",
+    getSocket(req).to(constants_1.SocketRoom.USER(emergency.userId)).emit(constants_1.SocketEventEnums.RECEIVE_ALERT, {
+        emergencyId: emergency.id,
+        serviceType: emergency.serviceType,
+        requestStatus: emergency.requestStatus,
+        status,
         message: isDeclined
             ? "Your emergency request was declined. Please try another provider."
             : isCompleted
-            ? `Your ${serviceName} request has been completed by the response team.`
-            : "Your provider has accepted your request and is on the way.",
-        type: isDeclined ? "emergency_request_declined" : isCompleted ? "emergency_request_completed" : "emergency_request_accepted",
-        source: "admin",
-        priority: "high",
-        phoneNumber: String(requester.phoneNumber || ""),
-        pushToken: requester.pushToken,
-        metadata: {
-            emergencyId: emergency.id,
-            serviceType: emergency.serviceType,
-            requestStatus: emergency.requestStatus,
-            status,
-        },
+                ? `Your ${serviceName} request has been completed by the response team.`
+                : "Your provider has accepted your request and is on the way.",
     });
-    getSocket(req).to(constants_1.SocketRoom.USER(emergency.userId)).emit(constants_1.SocketEventEnums.NOTIFICATION_CREATED, notification);
-    return notification;
 }
 function emitRequestLifecycle(req, event, emergency, extra = {}) {
     const payload = {
@@ -168,6 +152,7 @@ function emitRequestLifecycle(req, event, emergency, extra = {}) {
     getSocket(req).to(constants_1.SocketRoom.USER(emergency.userId)).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, payload);
     getSocket(req).to(constants_1.SocketRoom.ADMINS).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, payload);
     getSocket(req).to(constants_1.SocketRoom.PROVIDERS).emit(constants_1.SocketEventEnums.REQUEST_STATUS_UPDATED, payload);
+    void (0, user_history_service_1.emitUserRecentRequestsUpdated)(req, emergency.userId, emergency);
 }
 async function serializeAdminEmergency(request, response) {
     const [requester, responder] = (await Promise.all([
@@ -256,7 +241,7 @@ async function findNearbyResponders(coordinates, serviceType) {
         .sort((left, right) => left.distanceKm - right.distanceKm);
 }
 /**
- * Creates the main one-tap SOS alert, stores it, and fan-outs notifications.
+ * Creates the main one-tap SOS alert, stores it, and broadcasts live socket updates.
  */
 const createSosAlert = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const userId = req.user.id;
@@ -280,14 +265,9 @@ const createSosAlert = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         location: payload.coordinates,
         locationName,
     }));
-    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "SOS alert submitted");
+    const historyItem = await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "SOS alert submitted");
+    await (0, user_history_service_1.emitUserRecentRequestsUpdated)(req, userId, historyItem);
     const nearbyResponders = await findNearbyResponders(payload.coordinates, emergency.serviceType);
-    await (0, notification_service_1.notifyEmergencyNetwork)(userId, {
-        emergencyId: emergency.id,
-        emergencyType: payload.emergencyType,
-        requesterName: user.name,
-        location: payload.coordinates,
-    }, nearbyResponders.map((responder) => responder.id));
     req.app.get("io").emit(constants_1.SocketEventEnums.SEND_SOS, {
         emergencyId: emergency.id,
         userId,
@@ -364,7 +344,8 @@ const updateEmergencyStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) 
         emergency.arrivalTime = new Date();
     }
     await emergency.save();
-    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), `Emergency status updated to ${emergency.requestStatus}`);
+    const historyItem = await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), `Emergency status updated to ${emergency.requestStatus}`);
+    await (0, user_history_service_1.emitUserRecentRequestsUpdated)(req, emergency.userId, historyItem);
     const responseEntry = (await models_1.EmergencyResponseModel.findOne({
         emergencyRequestId: emergency.id,
     }));
@@ -385,10 +366,10 @@ const updateEmergencyStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) 
     });
     if (req.user.role === "admin" && previousStatus !== emergency.requestStatus) {
         if (payload.status === "accepted") {
-            await notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
+            notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
         }
         if (payload.status === "resolved") {
-            await notifyRequesterOfAdminStatus(req, emergency.toObject(), "completed");
+            notifyRequesterOfAdminStatus(req, emergency.toObject(), "completed");
         }
     }
     if (previousStatus !== emergency.requestStatus) {
@@ -534,7 +515,8 @@ const approveEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res
     const previousStatus = emergency.requestStatus;
     emergency.requestStatus = "approved";
     await emergency.save();
-    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "Emergency request approved");
+    const historyItem = await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "Emergency request approved");
+    await (0, user_history_service_1.emitUserRecentRequestsUpdated)(req, emergency.userId, historyItem);
     const responseEntry = (await models_1.EmergencyResponseModel.findOneAndUpdate({ emergencyRequestId: emergency.id }, {
         emergencyRequestId: emergency.id,
         serviceProviderId: req.user.id,
@@ -558,7 +540,7 @@ const approveEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res
         assignedResponder: req.user.id,
     });
     if (previousStatus !== emergency.requestStatus) {
-        await notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
+        notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
     }
     emitRequestLifecycle(req, constants_1.SocketEventEnums.REQUEST_ACCEPTED, emergency.toObject(), {
         assignedResponder: req.user.id,
@@ -584,7 +566,8 @@ const rejectEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
     }
     emergency.requestStatus = "rejected";
     await emergency.save();
-    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), payload.reason || "Emergency request rejected");
+    const historyItem = await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), payload.reason || "Emergency request rejected");
+    await (0, user_history_service_1.emitUserRecentRequestsUpdated)(req, emergency.userId, historyItem);
     const responseEntry = (await models_1.EmergencyResponseModel.findOneAndUpdate({ emergencyRequestId: emergency.id }, {
         statusUpdate: "rejected",
         updateDescription: payload.reason || "Emergency rejected by admin",
@@ -600,7 +583,7 @@ const rejectEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res)
         emergencyId: emergency.id,
         status: "rejected",
     });
-    await notifyRequesterOfAdminStatus(req, emergency.toObject(), "rejected");
+    notifyRequesterOfAdminStatus(req, emergency.toObject(), "rejected");
     emitRequestLifecycle(req, constants_1.SocketEventEnums.REQUEST_DECLINED, emergency.toObject(), {
         reason: payload.reason || "Emergency rejected by admin",
         response: responseEntry,
@@ -639,7 +622,8 @@ const assignResponder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     emergency.requestStatus = "assigned";
     emergency.dispatchTime = new Date();
     await emergency.save();
-    await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "Responder assigned");
+    const historyItem = await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "Responder assigned");
+    await (0, user_history_service_1.emitUserRecentRequestsUpdated)(req, emergency.userId, historyItem);
     responder.serviceStatus = "assigned";
     await responder.save();
     const responseEntry = (await models_1.EmergencyResponseModel.findOneAndUpdate({ emergencyRequestId: emergency.id }, {
@@ -655,24 +639,6 @@ const assignResponder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         respondedAt: new Date(),
         updateDescription: "Responder assigned by admin",
     }, { new: true, upsert: true }).lean());
-    const responderNotification = await (0, notification_service_1.deliverNotification)({
-        serviceProviderId: responder.id,
-        title: "Emergency task assigned",
-        message: `You have been assigned a ${emergency.serviceType} emergency request.`,
-        type: "emergency_assignment",
-        source: "admin",
-        priority: "high",
-        phoneNumber: String(responder.phoneNumber || ""),
-        pushToken: responder.pushToken,
-        metadata: {
-            emergencyId: emergency.id,
-            emergencyType: emergency.serviceType,
-            userId: emergency.userId,
-            coordinates: emergency.location,
-            assignedAt: responseEntry.assignedAt,
-        },
-    });
-    req.app.get("io").to(constants_1.SocketRoom.PROVIDER(responder.id)).emit(constants_1.SocketEventEnums.NOTIFICATION_CREATED, responderNotification);
     req.app.get("io").to(constants_1.SocketRoom.PROVIDER(responder.id)).emit(constants_1.SocketEventEnums.RECEIVE_ALERT, {
         emergencyId: emergency.id,
         status: "accepted",
@@ -684,7 +650,7 @@ const assignResponder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         assignedResponder: responder.id,
     });
     if (!["approved", "assigned", "in_progress"].includes(previousStatus)) {
-        await notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
+        notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
     }
     emitRequestLifecycle(req, constants_1.SocketEventEnums.REQUEST_ACCEPTED, emergency.toObject(), {
         assignedResponder: responder.id,

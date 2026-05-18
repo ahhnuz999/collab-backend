@@ -93,7 +93,6 @@ function toSafeUser(user) {
         role: user.role,
         medicalInfo: user.medicalInfo || {},
         currentLocation: user.currentLocation || null,
-        pushToken: user.pushToken || null,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
     };
@@ -112,7 +111,6 @@ function toSafeServiceProvider(provider) {
         serviceStatus: provider.serviceStatus,
         currentLocation: provider.currentLocation || null,
         vehicleInformation: provider.vehicleInformation || {},
-        pushToken: provider.pushToken || null,
         createdAt: provider.createdAt,
         updatedAt: provider.updatedAt,
     };
