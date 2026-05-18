@@ -36,6 +36,11 @@ const envSchema = zod_1.z.object({
     FCM_PROJECT_ID: zod_1.z.string().default(""),
     FCM_CLIENT_EMAIL: zod_1.z.string().default(""),
     FCM_PRIVATE_KEY: zod_1.z.string().default(""),
+    AI_PROVIDER: zod_1.z.enum(["openrouter", "gemini"]).default("openrouter"),
+    OPENROUTER_API_KEY: zod_1.z.string().default(""),
+    OPENROUTER_MODEL: zod_1.z.string().default("openrouter/free"),
+    GEMINI_API_KEY: zod_1.z.string().default(""),
+    GEMINI_MODEL: zod_1.z.string().default("gemini-flash-latest"),
     DEFAULT_ALERT_RADIUS_KM: zod_1.z.coerce.number().default(15),
 });
 function createEnvConfig() {
@@ -65,6 +70,11 @@ function createEnvConfig() {
         fcm_project_id: parsedEnv.data.FCM_PROJECT_ID,
         fcm_client_email: parsedEnv.data.FCM_CLIENT_EMAIL,
         fcm_private_key: parsedEnv.data.FCM_PRIVATE_KEY,
+        ai_provider: parsedEnv.data.AI_PROVIDER,
+        openrouter_api_key: parsedEnv.data.OPENROUTER_API_KEY,
+        openrouter_model: parsedEnv.data.OPENROUTER_MODEL,
+        gemini_api_key: parsedEnv.data.GEMINI_API_KEY,
+        gemini_model: parsedEnv.data.GEMINI_MODEL,
         default_alert_radius_km: parsedEnv.data.DEFAULT_ALERT_RADIUS_KM,
     };
 }

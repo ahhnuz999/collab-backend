@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.appModels = exports.NotificationModel = exports.FeedbackModel = exports.EmergencyContactModel = exports.EmergencyResponseModel = exports.UserRequestHistoryModel = exports.EmergencyRequestModel = exports.ServiceProviderModel = exports.OrganizationModel = exports.UserModel = void 0;
+exports.appModels = exports.ChatConversationModel = exports.NotificationModel = exports.FeedbackModel = exports.EmergencyContactModel = exports.EmergencyResponseModel = exports.UserRequestHistoryModel = exports.EmergencyRequestModel = exports.ServiceProviderModel = exports.OrganizationModel = exports.UserModel = void 0;
 const crypto_1 = require("crypto");
 const mongoose_1 = __importStar(require("mongoose"));
 const locationSchema = new mongoose_1.Schema({
@@ -221,6 +221,17 @@ exports.NotificationModel = mongoose_1.default.model("Notification", new mongoos
     isRead: { type: Boolean, default: false },
     doNotDisturb: { type: Boolean, default: false },
 }), baseOptions));
+const chatMessageSchema = new mongoose_1.Schema({
+    role: { type: String, enum: ["user", "assistant"], required: true },
+    text: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now },
+}, { _id: false });
+exports.ChatConversationModel = mongoose_1.default.model("ChatConversation", new mongoose_1.Schema(withBaseFields({
+    conversationId: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, index: true },
+    messages: { type: [chatMessageSchema], default: [] },
+    lastMessageAt: { type: Date, default: Date.now },
+}), baseOptions), "chat_conversations");
 exports.appModels = [
     exports.UserModel,
     exports.EmergencyContactModel,
@@ -229,6 +240,7 @@ exports.appModels = [
     exports.EmergencyResponseModel,
     exports.FeedbackModel,
     exports.NotificationModel,
+    exports.ChatConversationModel,
     exports.OrganizationModel,
     exports.ServiceProviderModel,
 ];
