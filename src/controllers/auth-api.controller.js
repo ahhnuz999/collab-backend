@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateMyProfile = exports.updateMyLocation = exports.resetPassword = exports.verifyRegistration = exports.register = exports.login = exports.forgotPassword = void 0;
+exports.updateMyProfile = exports.updateMyLocation = exports.resetPassword = exports.verifyRegistration = exports.register = exports.sendRegistrationOtp = exports.login = exports.forgotPassword = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const models_1 = require("../db/models");
 const ApiError_1 = __importDefault(require("../utils/api/ApiError"));
@@ -16,6 +16,7 @@ const zod_1 = require("zod");
 /** Accept string or number from JSON clients; keep digits only */
 const phoneInput = zod_1.z.preprocess((v) => (v == null ? "" : String(v).replace(/\D/g, "").trim()), zod_1.z.string().regex(/^\d{10}$/, "Phone number must be exactly 10 digits"));
 const passwordInput = zod_1.z.preprocess((v) => (v == null ? "" : String(v).trim()), zod_1.z.string().min(8, "Password must be at least 8 characters"));
+const otpInput = zod_1.z.preprocess((v) => (v == null ? "" : String(v).trim()), zod_1.z.string().min(1, "OTP is required"));
 const fullNameInput = zod_1.z
     .string()
     .trim()
@@ -27,6 +28,7 @@ const registerSchema = zod_1.z.object({
     password: passwordInput,
     primaryAddress: zod_1.z.string().min(3),
     age: zod_1.z.coerce.number().int().min(1),
+    otpToken: otpInput,
     role: zod_1.z.enum(["user", "admin"]).optional(),
     medicalInfo: zod_1.z
         .object({
@@ -43,6 +45,9 @@ const loginSchema = zod_1.z.object({
     password: passwordInput,
 });
 const forgotPasswordSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+});
+const sendRegistrationOtpSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
 });
 const resetPasswordSchema = zod_1.z.object({
@@ -64,6 +69,19 @@ const profileSchema = zod_1.z.object({
     phoneNumber: phoneInput.optional(),
     primaryAddress: zod_1.z.string().min(3).optional(),
 });
+const pendingRegistrationOtps = new Map();
+function getPendingRegistrationOtp(email) {
+    const key = email.toLowerCase();
+    const pendingOtp = pendingRegistrationOtps.get(key);
+    if (!pendingOtp) {
+        return null;
+    }
+    if (Date.now() > pendingOtp.expiresAt) {
+        pendingRegistrationOtps.delete(key);
+        return null;
+    }
+    return pendingOtp;
+}
 function toSafeUser(user) {
     return {
         id: user.id || user._id,
@@ -100,33 +118,64 @@ function toSafeServiceProvider(provider) {
     };
 }
 /**
+ * Sends an OTP to the email before a user account is created.
+ */
+const sendRegistrationOtp = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const payload = sendRegistrationOtpSchema.parse(req.body);
+    const existingUser = await models_1.UserModel.findOne({ email: payload.email }).lean();
+    const existingServiceProvider = await models_1.ServiceProviderModel.findOne({ email: payload.email }).lean();
+    if (existingUser || existingServiceProvider) {
+        throw new ApiError_1.default(409, "A user with that email already exists");
+    }
+    const otpToken = await (0, email_1.sendOTP)(payload.email);
+    pendingRegistrationOtps.set(payload.email.toLowerCase(), {
+        otpToken,
+        expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+    return res.status(200).json(new ApiResponse_1.default(200, "Registration OTP sent successfully", {
+        email: payload.email,
+    }));
+});
+exports.sendRegistrationOtp = sendRegistrationOtp;
+/**
  * Registers a new mobile app user with a hashed password and optional medical profile.
  */
 const register = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const payload = registerSchema.parse(req.body);
+    const pendingOtp = getPendingRegistrationOtp(payload.email);
+    if (!pendingOtp) {
+        throw new ApiError_1.default(400, "Please send an OTP to this email before registering");
+    }
+    if (payload.otpToken !== pendingOtp.otpToken) {
+        throw new ApiError_1.default(400, "Invalid OTP");
+    }
     const existingUser = (await models_1.UserModel.findOne({
         $or: [{ email: payload.email }, { phoneNumber: Number(payload.phoneNumber) }],
     }).lean());
-    if (existingUser) {
-        if (existingUser.email === payload.email) {
+    const existingServiceProvider = (await models_1.ServiceProviderModel.findOne({
+        $or: [{ email: payload.email }, { phoneNumber: Number(payload.phoneNumber) }],
+    }).lean());
+    if (existingUser || existingServiceProvider) {
+        const existingAccount = existingUser || existingServiceProvider;
+        if (existingAccount.email === payload.email) {
             throw new ApiError_1.default(409, "A user with that email already exists");
         }
         throw new ApiError_1.default(409, "A user with that phone number already exists");
     }
-    const otpToken = await (0, email_1.sendOTP)(payload.email);
     const password = await bcryptjs_1.default.hash(payload.password, 10);
     const user = (await models_1.UserModel.create({
         ...payload,
+        otpToken: undefined,
         phoneNumber: Number(payload.phoneNumber),
         password,
         role: payload.role || "user",
-        isVerified: false,
-        verificationToken: otpToken,
-        tokenExpiry: new Date(Date.now() + 10 * 60 * 1000),
+        isVerified: true,
     }));
-    return res.status(201).json(new ApiResponse_1.default(201, "Registration OTP sent successfully", {
-        userId: user.id,
-        email: user.email,
+    pendingRegistrationOtps.delete(payload.email.toLowerCase());
+    const token = (0, jwtTokens_1.generateJWT)(user.toObject());
+    return res.status(201).json(new ApiResponse_1.default(201, "User registered successfully", {
+        token,
+        user: toSafeUser(user.toObject()),
     }));
 });
 exports.register = register;
