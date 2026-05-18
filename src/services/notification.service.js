@@ -9,9 +9,11 @@ exports.deliverNotification = deliverNotification;
 exports.notifyEmergencyNetwork = notifyEmergencyNetwork;
 const axios_1 = __importDefault(require("axios"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const expo_server_sdk_1 = require("expo-server-sdk");
 const env_config_1 = require("../config/env.config");
 const models_1 = require("../db/models");
 const twilio_1 = __importDefault(require("../utils/services/twilio"));
+const expo = new expo_server_sdk_1.Expo();
 let accessTokenCache = null;
 /**
  * Creates a Google OAuth access token for Firebase Cloud Messaging.
@@ -49,9 +51,27 @@ async function getFcmAccessToken() {
     return accessTokenCache.token;
 }
 /**
- * Sends a push notification using Firebase Cloud Messaging when credentials are configured.
+ * Sends a push notification using Expo tokens first, then Firebase Cloud Messaging.
  */
 async function sendPushNotification(pushToken, title, message, data = {}) {
+    if (expo_server_sdk_1.Expo.isExpoPushToken(pushToken)) {
+        const chunks = expo.chunkPushNotifications([
+            {
+                to: pushToken,
+                sound: "default",
+                title,
+                body: message,
+                data: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, String(value)])),
+            },
+        ]);
+        for (const chunk of chunks) {
+            const tickets = await expo.sendPushNotificationsAsync(chunk);
+            if (tickets.some((ticket) => ticket.status === "ok")) {
+                return true;
+            }
+        }
+        return false;
+    }
     const accessToken = await getFcmAccessToken();
     if (!accessToken || !pushToken) {
         return false;

@@ -111,6 +111,46 @@ function serializeEmergency(request, response) {
 function getSocket(req) {
     return req.app.get("io");
 }
+function getServiceDisplayName(serviceType) {
+    switch (serviceType) {
+        case "ambulance":
+            return "ambulance";
+        case "fire_truck":
+            return "fire rescue";
+        case "police":
+            return "police";
+        default:
+            return "emergency";
+    }
+}
+async function notifyRequesterOfAdminStatus(req, emergency, status) {
+    const requester = await models_1.UserModel.findOne({ id: emergency.userId }).lean();
+    if (!requester) {
+        return null;
+    }
+    const serviceName = getServiceDisplayName(emergency.serviceType);
+    const isCompleted = status === "completed";
+    const notification = await (0, notification_service_1.deliverNotification)({
+        userId: emergency.userId,
+        title: isCompleted ? "Request completed" : "Request accepted",
+        message: isCompleted
+            ? `Your ${serviceName} request has been completed by the response team.`
+            : `Your ${serviceName} request has been accepted by the response team.`,
+        type: isCompleted ? "emergency_request_completed" : "emergency_request_accepted",
+        source: "admin",
+        priority: "high",
+        phoneNumber: String(requester.phoneNumber || ""),
+        pushToken: requester.pushToken,
+        metadata: {
+            emergencyId: emergency.id,
+            serviceType: emergency.serviceType,
+            requestStatus: emergency.requestStatus,
+            status,
+        },
+    });
+    getSocket(req).to(constants_1.SocketRoom.USER(emergency.userId)).emit(constants_1.SocketEventEnums.NOTIFICATION_CREATED, notification);
+    return notification;
+}
 async function serializeAdminEmergency(request, response) {
     const [requester, responder] = (await Promise.all([
         models_1.UserModel.findOne({ id: request.userId }).lean(),
@@ -297,6 +337,7 @@ const updateEmergencyStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) 
     if (req.user.role !== "admin" && req.user.id !== emergency.userId) {
         throw new ApiError_1.default(403, "Not authorized to update this emergency");
     }
+    const previousStatus = emergency.requestStatus;
     emergency.requestStatus = mapApiStatusToDbStatus(payload.status);
     if (payload.status === "accepted" && !emergency.dispatchTime) {
         emergency.dispatchTime = new Date();
@@ -318,6 +359,14 @@ const updateEmergencyStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) 
         emergencyId: emergency.id,
         status: payload.status,
     });
+    if (req.user.role === "admin" && previousStatus !== emergency.requestStatus) {
+        if (payload.status === "accepted") {
+            await notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
+        }
+        if (payload.status === "resolved") {
+            await notifyRequesterOfAdminStatus(req, emergency.toObject(), "completed");
+        }
+    }
     const serialized = serializeEmergency(emergency.toObject(), responseEntry?.toObject?.() || responseEntry || undefined);
     return res
         .status(200)
@@ -453,6 +502,7 @@ const approveEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res
     if (existingResponse?.serviceProviderId && existingResponse.serviceProviderId !== req.user.id) {
         throw new ApiError_1.default(409, "Another responder already accepted this request");
     }
+    const previousStatus = emergency.requestStatus;
     emergency.requestStatus = "approved";
     await emergency.save();
     await (0, user_history_service_1.recordUserRequestHistory)(emergency.toObject(), "Emergency request approved");
@@ -478,6 +528,9 @@ const approveEmergencyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res
         status: "approved",
         assignedResponder: req.user.id,
     });
+    if (previousStatus !== emergency.requestStatus) {
+        await notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
+    }
     return res
         .status(200)
         .json(new ApiResponse_1.default(200, "Emergency request approved", await serializeAdminEmergency(emergency.toObject(), responseEntry || undefined)));
@@ -544,6 +597,7 @@ const assignResponder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (responder.serviceType !== emergency.serviceType) {
         throw new ApiError_1.default(400, "Responder service type does not match emergency type");
     }
+    const previousStatus = emergency.requestStatus;
     emergency.requestStatus = "assigned";
     emergency.dispatchTime = new Date();
     await emergency.save();
@@ -591,6 +645,9 @@ const assignResponder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         status: "accepted",
         assignedResponder: responder.id,
     });
+    if (!["approved", "assigned", "in_progress"].includes(previousStatus)) {
+        await notifyRequesterOfAdminStatus(req, emergency.toObject(), "accepted");
+    }
     return res.status(200).json(new ApiResponse_1.default(200, "Responder assigned successfully", {
         emergency: serializeEmergency(emergency.toObject(), responseEntry || undefined),
         responder: {

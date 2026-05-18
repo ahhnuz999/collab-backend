@@ -13,6 +13,7 @@ const socket_1 = require("../socket");
 const constants_1 = require("../constants");
 const expo_server_sdk_1 = require("expo-server-sdk");
 const ApiError_1 = __importDefault(require("../utils/api/ApiError"));
+const models_1 = require("../db/models");
 // Initialize Expo client
 const expo = new expo_server_sdk_1.Expo();
 const userPushTokens = {};
@@ -50,6 +51,13 @@ const storePushToken = async (userId, token) => {
         throw new Error(`Push token ${token} is not a valid Expo push token`);
     }
     userPushTokens[userId] = token;
+    const [userUpdate, providerUpdate] = await Promise.all([
+        models_1.UserModel.updateOne({ id: userId }, { pushToken: token }),
+        models_1.ServiceProviderModel.updateOne({ id: userId }, { pushToken: token }),
+    ]);
+    if (!userUpdate.matchedCount && !providerUpdate.matchedCount) {
+        throw new ApiError_1.default(404, "User not found");
+    }
 };
 exports.storePushToken = storePushToken;
 const getNotifications = (0, asyncHandler_1.asyncHandler)(async (req, res, _next) => {
